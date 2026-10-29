@@ -2,16 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ACNABIN classic theme tokens (same as the ACNABIN Task Tracker) */
 :root {
-  --foreground-rgb: 15, 23, 42;
-  --background-rgb: 248, 250, 252;
+  --cream: #EDE7DE;
+  --cream-card: #FAF7F2;
+  --maroon: #8B1420;
+  --maroon-dark: #6E0F19;
+  --maroon-light: #F9E8EA;
+  --teal: #1D8C8C;
+  --navy: #1B2A6B;
+  --ink: #221F1D;
+  --ink-soft: #5A544E;
+  --ink-muted: #877E75;
+  --line: #D8CFC3;
+  --line-strong: #BFB4A5;
+  --line-soft: #EAE3D9;
+  --shadow-card: 0 2px 8px rgba(34, 31, 29, 0.06);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
+  color: var(--ink);
+  background: var(--cream);
   -webkit-tap-highlight-color: transparent;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -29,3 +41,41 @@ input, textarea, select, button {
   font-size: 16px;
 }
 
+/* Form focus uses the maroon accent */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--maroon);
+  box-shadow: 0 0 0 3px rgba(139, 20, 32, 0.12);
+}
+
+/* Shared classic components */
+.font-display {
+  font-family: var(--font-playfair), 'Playfair Display', Georgia, serif;
+}
+
+.auth-card {
+  background: #FFFFFF;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.auth-card-title {
+  font-family: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  font-weight: 800;
+  font-size: 26px;
+  color: var(--maroon);
+}
+
+.auth-alert-error {
+  background: #FEE2E2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+  border-radius: 6px;
+}
+
+.modal-backdrop {
+  background: rgba(34, 31, 29, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}

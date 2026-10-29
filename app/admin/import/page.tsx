@@ -122,7 +122,7 @@ export default function FARImportPage() {
 
       // 2. Prepare batches of 500
       const BATCH_SIZE = 500;
-      const assets = parseResult.activeAssets;
+      const assets = parseResult.allAssets;
       const totalBatches = Math.ceil(assets.length / BATCH_SIZE);
 
       let insertedCount = 0;
@@ -301,7 +301,7 @@ export default function FARImportPage() {
                 <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center">
                   <div className="text-xs text-emerald-800 font-medium">Assets with Cost &gt; 0</div>
                   <div className="text-2xl font-black text-emerald-700 mt-1">
-                    {parseResult.summary.activeCount.toLocaleString()}
+                    {parseResult.summary.withValueCount.toLocaleString()}
                   </div>
                   <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
                     Expected: 6,336 ✓
@@ -309,12 +309,12 @@ export default function FARImportPage() {
                 </div>
 
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-center">
-                  <div className="text-xs text-amber-800 font-medium">Zero-Cost (Excluded)</div>
+                  <div className="text-xs text-amber-800 font-medium">Zero-Cost Assets</div>
                   <div className="text-2xl font-black text-amber-700 mt-1">
                     {parseResult.summary.zeroCostCount.toLocaleString()}
                   </div>
                   <div className="text-[10px] text-amber-700 font-semibold mt-0.5">
-                    Expected: 149 ✓
+                    Included in Import (Tk 0) ✓
                   </div>
                 </div>
 
@@ -392,7 +392,7 @@ export default function FARImportPage() {
                 >
                   {showZeroCostList ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   <span>
-                    {showZeroCostList ? 'Hide' : 'View'} {parseResult.zeroCostAssets.length} Zero-Cost Assets Excluded
+                    {showZeroCostList ? 'Hide' : 'View'} {parseResult.zeroCostAssets.length} Zero-Cost Assets (Included in Import)
                   </span>
                 </button>
 
@@ -465,6 +465,21 @@ export default function FARImportPage() {
                       </div>
                     )}
 
+                    {/* Audit Scope Confirmation */}
+                    <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-3">
+                      <div>
+                        <div className="text-xs font-bold text-brand-900">
+                          Complete Fixed Asset Register Import: All {parseResult.summary.totalUniqueAssets.toLocaleString()} Assets
+                        </div>
+                        <p className="text-[11px] text-brand-700 mt-0.5">
+                          Every asset from the FAR register will be imported into Supabase ({parseResult.summary.withValueCount.toLocaleString()} with value + {parseResult.summary.zeroCostCount.toLocaleString()} zero-cost items).
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-[11px] font-bold text-brand-700 shrink-0 self-start sm:self-auto">
+                        100% Register Coverage
+                      </span>
+                    </div>
+
                     <button
                       onClick={handleSaveToDatabase}
                       disabled={saving}
@@ -474,14 +489,14 @@ export default function FARImportPage() {
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
                           <span>
-                            Importing in batches of 500 ({saveProgress?.current || 0} / {parseResult.activeAssets.length})...
+                            Importing in batches of 500 ({saveProgress?.current || 0} / {parseResult.summary.totalUniqueAssets.toLocaleString()})...
                           </span>
                         </>
                       ) : (
                         <>
                           <Database className="w-5 h-5" />
                           <span>
-                            Confirm &amp; Insert {parseResult.activeAssets.length.toLocaleString()} Assets into Supabase
+                            Confirm &amp; Insert All {parseResult.summary.totalUniqueAssets.toLocaleString()} Assets into Supabase
                           </span>
                         </>
                       )}

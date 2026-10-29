@@ -25,13 +25,15 @@ export interface ZeroCostAssetRecord {
 }
 
 export interface FARParseResult {
-  activeAssets: ParsedAssetRecord[];
+  allAssets: ParsedAssetRecord[];
+  activeAssets: ParsedAssetRecord[]; // All assets to be imported (including zero-cost)
   zeroCostAssets: ZeroCostAssetRecord[];
   summary: {
     totalRowsInFile: number;
     totalUniqueAssets: number;
-    activeCount: number;
+    withValueCount: number;
     zeroCostCount: number;
+    activeCount: number;
     totalCost: number;
     totalAccDep: number;
     totalNbv: number;
@@ -254,12 +256,13 @@ export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
     }
   }
 
-  const activeAssets: ParsedAssetRecord[] = [];
+  const allAssets: ParsedAssetRecord[] = [];
   const zeroCostAssets: ZeroCostAssetRecord[] = [];
 
   let totalCost = 0;
   let totalAccDep = 0;
   let totalNbv = 0;
+  let withValueCount = 0;
 
   const byMethod: Record<AssetMethod, number> = {
     Count: 0,
@@ -275,7 +278,26 @@ export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
     const nbv = Math.round((cost + acc_dep) * 100) / 100;
     const far_qty = extractFARQuantity(item.description);
 
-    // Rule 5: Skip assets with cost <= 0
+    const assetRecord: ParsedAssetRecord = {
+      tag_no: item.tag_no,
+      description: item.description,
+      asset_class: item.asset_class,
+      gl_account: item.gl_account,
+      capitalized_on: item.capitalized_on,
+      cost,
+      acc_dep,
+      nbv,
+      far_qty,
+      method,
+    };
+
+    // ALL assets are imported into the register
+    allAssets.push(assetRecord);
+    byMethod[method] = (byMethod[method] || 0) + 1;
+    totalCost += cost;
+    totalAccDep += acc_dep;
+    totalNbv += nbv;
+
     if (cost <= 0) {
       zeroCostAssets.push({
         tag_no: item.tag_no,
@@ -287,34 +309,20 @@ export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
         method,
       });
     } else {
-      activeAssets.push({
-        tag_no: item.tag_no,
-        description: item.description,
-        asset_class: item.asset_class,
-        gl_account: item.gl_account,
-        capitalized_on: item.capitalized_on,
-        cost,
-        acc_dep,
-        nbv,
-        far_qty,
-        method,
-      });
-
-      totalCost += cost;
-      totalAccDep += acc_dep;
-      totalNbv += nbv;
-      byMethod[method] = (byMethod[method] || 0) + 1;
+      withValueCount++;
     }
   }
 
   return {
-    activeAssets,
+    allAssets,
+    activeAssets: allAssets, // All assets to be imported (including zero-cost)
     zeroCostAssets,
     summary: {
       totalRowsInFile: dataRows.length,
       totalUniqueAssets: assetMap.size,
-      activeCount: activeAssets.length,
+      withValueCount,
       zeroCostCount: zeroCostAssets.length,
+      activeCount: allAssets.length,
       totalCost: Math.round(totalCost * 100) / 100,
       totalAccDep: Math.round(totalAccDep * 100) / 100,
       totalNbv: Math.round(totalNbv * 100) / 100,

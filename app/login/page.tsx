@@ -70,29 +70,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-cream flex flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* App Branding */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-800 text-white shadow-lg ring-4 ring-blue-100">
-            <ShieldCheck className="w-8 h-8 text-blue-200" />
-          </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-            ACNABIN <span className="text-brand-700">FA Count</span>
-          </h1>
-          <p className="text-xs text-slate-500 font-medium">
-            Fixed Asset Physical Count &amp; Verification App
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/acnabin-logo.png"
+            alt="ACNABIN Chartered Accountants"
+            className="h-14 w-auto mx-auto object-contain"
+          />
+          <h1 className="auth-card-title">FA Count</h1>
+          <p className="text-[13px] text-slate-600">
+            Fixed Asset Physical Count &amp; Verification Portal
           </p>
         </div>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-7 px-5 sm:px-8 shadow-sm rounded-2xl border border-slate-200">
+        <div className="auth-card py-8 px-6 sm:px-8">
           <form className="space-y-4" onSubmit={handleLogin}>
             {/* Error Notification */}
             {errorMsg && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2.5 text-rose-800 text-xs animate-shake">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="auth-alert-error p-3 flex items-start space-x-2.5 text-xs animate-shake">
+                <AlertCircle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">{errorMsg}</span>
               </div>
             )}
@@ -101,7 +102,7 @@ export default function LoginPage() {
             <div>
               <label 
                 htmlFor="email" 
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5"
+                className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5"
               >
                 Auditor Email
               </label>
@@ -119,7 +120,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="auditor@acnabin.com"
-                  className="block w-full min-h-[48px] pl-11 pr-3 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-600 focus:border-brand-600 text-slate-900 placeholder:text-slate-400 transition-all"
+                  className="block w-full min-h-[48px] pl-11 pr-3 text-sm bg-white border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-600/20 focus:border-brand-700 text-slate-900 placeholder:text-slate-400 transition-all"
                 />
               </div>
             </div>
@@ -128,7 +129,7 @@ export default function LoginPage() {
             <div>
               <label 
                 htmlFor="password" 
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5"
+                className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5"
               >
                 Password
               </label>
@@ -145,7 +146,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="block w-full min-h-[48px] pl-11 pr-3 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-600 focus:border-brand-600 text-slate-900 placeholder:text-slate-400 transition-all"
+                  className="block w-full min-h-[48px] pl-11 pr-3 text-sm bg-white border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-600/20 focus:border-brand-700 text-slate-900 placeholder:text-slate-400 transition-all"
                 />
               </div>
             </div>
@@ -155,7 +156,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full min-h-[50px] flex items-center justify-center px-4 py-3 bg-brand-700 hover:bg-brand-800 active:scale-[0.99] text-white font-bold rounded-xl shadow-md transition-all disabled:opacity-60 text-sm"
+                className="w-full min-h-[50px] flex items-center justify-center px-4 py-3 bg-brand-700 hover:bg-brand-800 active:scale-[0.99] text-white font-semibold rounded-md transition-all disabled:opacity-60 text-sm"
               >
                 {loading ? (
                   <span className="flex items-center space-x-2">

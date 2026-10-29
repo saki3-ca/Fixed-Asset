@@ -37,7 +37,7 @@ export const MobileNavBar: React.FC = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-cream-card border-t border-slate-300 shadow-lg pb-safe">
       <div className="grid grid-cols-5 max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
