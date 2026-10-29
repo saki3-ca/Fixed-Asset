@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireRole } from '@/lib/auth/requireRole';
 
 export async function POST(request: Request) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
   try {
     const { userId, active } = await request.json();
 
     if (!userId || typeof active !== 'boolean') {
       return NextResponse.json({ error: 'User ID and active status required' }, { status: 400 });
+    }
+
+    if (userId === auth.userId && active === false) {
+      return NextResponse.json({ error: 'You cannot deactivate your own account' }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();

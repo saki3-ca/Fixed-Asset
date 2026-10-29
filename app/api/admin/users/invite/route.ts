@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireRole } from '@/lib/auth/requireRole';
 
 export async function POST(request: Request) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
   try {
     const body = await request.json();
     const usersToInvite: Array<{ email: string; name: string; role: string }> = 
@@ -14,10 +17,12 @@ export async function POST(request: Request) {
     }
 
     const adminSupabase = createAdminClient();
+    // Invite and reset links land on this deployment's set-password page
+    const origin = new URL(request.url).origin;
     const results: Array<{ email: string; status: 'invited' | 'exists_updated' | 'failed'; message?: string }> = [];
 
     for (const item of usersToInvite) {
-      const email = item.email?.trim().toLowerCase();
+      const email = (item.email || '').trim().toLowerCase();
       const name = item.name?.trim() || email.split('@')[0];
       const role = ['admin', 'team_lead', 'counter', 'reviewer', 'manager'].includes(item.role)
         ? item.role
@@ -33,8 +38,8 @@ export async function POST(request: Request) {
         const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
           data: {
             full_name: name,
-            role,
           },
+          redirectTo: `${origin}/auth/set-password`,
         });
 
         if (inviteError) {

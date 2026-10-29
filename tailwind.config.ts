@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
 
-// ACNABIN classic theme (shared with the ACNABIN Task Tracker).
-// `slate` is remapped to the tracker's warm neutrals and `brand` to its maroon,
-// so existing utility classes pick up the classic look.
+// ACNABIN "Calm System" theme: Forest, Mint, Ivory, Stone.
+// Existing utility classes (brand-*, slate-*, blue-*, cream) are remapped here,
+// so every screen picks up the palette without per-file edits.
 const config: Config = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -16,64 +16,73 @@ const config: Config = {
       },
       colors: {
         cream: {
-          DEFAULT: "#EDE7DE",
-          card: "#FAF7F2",
+          DEFAULT: "#FAF9F4", // Ivory
+          card: "#F4F2EA",
         },
         navy: {
-          DEFAULT: "#1B2A6B",
-          dark: "#121D4D",
-          light: "#EBEFFE",
+          DEFAULT: "#0F5132", // Forest
+          dark: "#0B3E26",
+          light: "#EEF6F0",
         },
         teal: {
-          DEFAULT: "#1D8C8C",
-          dark: "#156E6E",
-          light: "#E6F5F5",
+          DEFAULT: "#2A6E49",
+          dark: "#166040",
+          light: "#EEF6F0",
+        },
+        mint: {
+          DEFAULT: "#B7D9C1",
+          light: "#DCEBE1",
         },
         brand: {
-          50: "#F9E8EA",
-          100: "#F3D0D4",
-          200: "#E5A3AA",
-          400: "#B8434F",
-          500: "#A32836",
-          600: "#9C1A27",
-          700: "#8B1420",
-          800: "#6E0F19",
-          900: "#4A0A11",
+          50: "#EEF6F0",
+          100: "#DCEBE1",
+          200: "#B7D9C1", // Mint
+          300: "#8FC3A0",
+          400: "#4E8F66",
+          500: "#2A6E49",
+          600: "#166040",
+          700: "#0F5132", // Forest
+          800: "#0B3E26",
+          900: "#072B1A",
         },
-        // Legacy blue/indigo utilities follow the classic maroon/navy accents.
         blue: {
-          50: "#F9E8EA", 100: "#F3D0D4", 200: "#EBC3C7", 300: "#E5A3AA",
-          400: "#B8434F", 500: "#A32836", 600: "#8B1420", 700: "#8B1420",
-          800: "#6E0F19", 900: "#4A0A11",
+          50: "#EEF6F0", 100: "#DCEBE1", 200: "#B7D9C1", 300: "#8FC3A0",
+          400: "#4E8F66", 500: "#2A6E49", 600: "#166040", 700: "#0F5132",
+          800: "#0B3E26", 900: "#072B1A",
         },
         indigo: {
-          50: "#EBEFFE", 100: "#D6DDFB", 200: "#B3BEF5", 300: "#8E9CEC",
-          400: "#5F70D6", 500: "#3C4EB0", 600: "#2B3B8C", 700: "#1B2A6B",
-          800: "#121D4D", 900: "#0C1436",
+          50: "#EEF6F0", 100: "#DCEBE1", 200: "#B7D9C1", 300: "#8FC3A0",
+          400: "#4E8F66", 500: "#2A6E49", 600: "#166040", 700: "#0F5132",
+          800: "#0B3E26", 900: "#072B1A",
         },
         slate: {
-          50: "#FAF7F2",
-          100: "#F5F3EF",
-          200: "#EAE3D9",
-          300: "#D8CFC3",
-          400: "#A39A8F",
-          500: "#877E75",
-          600: "#5A544E",
-          700: "#3D3935",
-          800: "#2E2A27",
-          900: "#221F1D",
+          50: "#FAF9F4",
+          100: "#F3F1EA",
+          200: "#E8E5DB",
+          300: "#D6D3C8", // Stone
+          400: "#A8A598",
+          500: "#78756A",
+          600: "#57554B",
+          700: "#3E3D36",
+          800: "#2A2A25",
+          900: "#17201A",
         },
         audit: {
           verified: "#166534",
           warning: "#92400E",
           danger: "#991B1B",
-          pending: "#877E75",
+          pending: "#78756A",
         },
       },
       borderRadius: {
-        xl: "8px",
-        "2xl": "10px",
-        "3xl": "16px",
+        lg: "12px",
+        xl: "16px",
+        "2xl": "20px",
+        "3xl": "28px",
+      },
+      boxShadow: {
+        soft: "0 1px 2px rgba(23, 32, 26, 0.04), 0 4px 14px rgba(23, 32, 26, 0.06)",
+        float: "0 6px 24px rgba(23, 32, 26, 0.14)",
       },
       minHeight: {
         touch: "48px",

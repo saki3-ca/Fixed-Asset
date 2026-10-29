@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { requireRole } from '@/lib/auth/requireRole';
 
 export async function GET() {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
   try {
     // Look for sample file in docs directory
     const filePath = path.join(process.cwd(), 'docs', 'FAR (14.01.26).xlsx');

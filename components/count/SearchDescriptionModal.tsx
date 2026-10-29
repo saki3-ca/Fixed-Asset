@@ -37,8 +37,9 @@ export const SearchDescriptionModal: React.FC<SearchDescriptionModalProps> = ({
       const { data, error } = await supabase
         .from('asset_counter_view')
         .select('*')
-        .ilike('description', `%${q}%`)
-        .limit(20);
+        .or(`description.ilike.%${q.replace(/[,()%]/g, ' ')}%,tag_no.ilike.%${q.replace(/[,()%]/g, ' ')}%`)
+        .order('tag_no')
+        .limit(30);
 
       if (error) throw error;
       setResults(data || []);
@@ -50,8 +51,8 @@ export const SearchDescriptionModal: React.FC<SearchDescriptionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] flex flex-col">
+    <div className="modal-backdrop z-50 flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl p-5 pb-6 shadow-2xl border border-slate-300 space-y-4 h-[85vh] sm:h-auto sm:max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h3 className="font-bold text-base text-slate-900">Search Asset by Description</h3>

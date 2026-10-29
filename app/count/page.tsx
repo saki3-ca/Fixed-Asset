@@ -4,29 +4,27 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { TopBar } from '@/components/navigation/TopBar';
-import { MobileNavBar } from '@/components/navigation/MobileNavBar';
-import { BarcodeScannerModal } from '@/components/count/BarcodeScannerModal';
 import { TypeTagModal } from '@/components/count/TypeTagModal';
 import { SearchDescriptionModal } from '@/components/count/SearchDescriptionModal';
-import { AlreadyVerifiedModal } from '@/components/count/AlreadyVerifiedModal';
+import { AlreadyVerifiedModal, type AlreadyVerifiedInfo } from '@/components/count/AlreadyVerifiedModal';
 import { MovementFormModal } from '@/components/count/MovementFormModal';
 import { FoundNotInFARModal } from '@/components/count/FoundNotInFARModal';
 import { VerificationCard } from '@/components/count/VerificationCard';
 import { AssetCounterView } from '@/types/database';
-import { 
-  QrCode, 
-  Search, 
-  PlusCircle, 
-  Building2, 
-  MapPin, 
-  Loader2, 
-  Check, 
+import {
+  Keyboard,
+  Search,
+  PlusCircle,
+  Building2,
+  MapPin,
+  Loader2,
+  Check,
   DoorOpen,
   Lock,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
 
-interface AssignedRoom {
+interface Room {
   id: string;
   building: string;
   floor: string;
@@ -35,88 +33,76 @@ interface AssignedRoom {
   verifiedCount: number;
 }
 
+interface TagRow {
+  verification_id: string;
+  location_id: string | null;
+  building: string | null;
+  floor: string | null;
+  room: string | null;
+  counter_name: string | null;
+  verified_at: string;
+  physical_qty: number;
+  found: string | null;
+}
+
 export default function CounterPage() {
-  const [userProfile, setUserProfile] = useState<{ id: string; name: string; role: string } | null>(null);
-  const [rooms, setRooms] = useState<AssignedRoom[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<AssignedRoom | null>(null);
+  const [userRole, setUserRole] = useState<string>('counter');
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Modal Visibility States
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isTypeTagOpen, setIsTypeTagOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFoundNotInFarOpen, setIsFoundNotInFarOpen] = useState(false);
   const [prefilledTagNotFound, setPrefilledTagNotFound] = useState('');
 
-  // Already Verified Exception State
-  const [isAlreadyVerifiedOpen, setIsAlreadyVerifiedOpen] = useState(false);
-  const [alreadyVerifiedData, setAlreadyVerifiedData] = useState<{
-    tag_no: string;
-    roomName: string;
-    counterName: string;
-    countTime: string;
-    description: string;
-    verificationId: string;
-    fromLocationId?: string;
-  } | null>(null);
+  const [alreadyVerified, setAlreadyVerified] = useState<AlreadyVerifiedInfo | null>(null);
 
-  // Movement Modal State
   const [isMovementOpen, setIsMovementOpen] = useState(false);
   const [movementTagNo, setMovementTagNo] = useState('');
   const [movementFromRoomId, setMovementFromRoomId] = useState<string | undefined>(undefined);
   const [movementFromRoomName, setMovementFromRoomName] = useState<string | undefined>(undefined);
 
-  // Active Verification Card State
-  const [activeAsset, setActiveAsset] = useState<AssetCounterView | null>(null);
+  // Active verification: the asset, plus qty already counted in other rooms (group assets)
+  const [activeAsset, setActiveAsset] = useState<{ asset: AssetCounterView; otherQty: number } | null>(null);
 
-  // Success Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // 1. Initial Load: user profile, assigned locations, and counts
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const roomLocked = !!currentRoom && currentRoom.status !== 'open';
+
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      const role = profile?.role || 'counter';
+      setUserRole(role);
 
-      // Fetch profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, full_name, role')
-        .eq('id', user.id)
-        .single();
-
-      const userName = profile?.full_name || user.email?.split('@')[0] || 'Auditor';
-      const userRole = profile?.role || 'counter';
-      setUserProfile({ id: user.id, name: userName, role: userRole });
-
-      // Fetch rooms: assigned to this user, or all open rooms
       const { data: locs, error: locErr } = await supabase
         .from('location')
         .select('id, building, floor, room, status, assigned_counter')
         .order('building')
         .order('floor')
         .order('room');
-
       if (locErr) throw locErr;
 
-      // Filter rooms assigned to this counter, or fallback to all rooms if none assigned
-      const assignedLocs = (locs || []).filter(
-        (l) => l.assigned_counter === user.id
-      );
-      const targetLocs = assignedLocs.length > 0 ? assignedLocs : locs || [];
+      // Counters only work in rooms assigned to them; team leads and admins can open any room
+      const targetLocs =
+        role === 'counter'
+          ? (locs || []).filter((l) => l.assigned_counter === user.id)
+          : locs || [];
 
-      // Fetch verification counts per room for this counter
       const { data: verifs } = await supabase
         .from('verification')
         .select('location_id')
@@ -124,32 +110,28 @@ export default function CounterPage() {
 
       const countMap: Record<string, number> = {};
       (verifs || []).forEach((v) => {
-        if (v.location_id) {
-          countMap[v.location_id] = (countMap[v.location_id] || 0) + 1;
-        }
+        if (v.location_id) countMap[v.location_id] = (countMap[v.location_id] || 0) + 1;
       });
 
-      const formattedRooms: AssignedRoom[] = targetLocs.map((l) => ({
+      const formatted: Room[] = targetLocs.map((l) => ({
         id: l.id,
         building: l.building,
         floor: l.floor,
         room: l.room,
-        status: l.status as 'open' | 'closed' | 'signed_off',
+        status: l.status as Room['status'],
         verifiedCount: countMap[l.id] || 0,
       }));
+      setRooms(formatted);
 
-      setRooms(formattedRooms);
-
-      // Check localStorage for active room
-      const savedRoomId = localStorage.getItem('fa_count_active_room_id');
-      const matchedSaved = formattedRooms.find((r) => r.id === savedRoomId);
-
-      if (matchedSaved) {
-        setCurrentRoom(matchedSaved);
-      } else if (formattedRooms.length > 0) {
-        setCurrentRoom(formattedRooms[0]);
-        localStorage.setItem('fa_count_active_room_id', formattedRooms[0].id);
-      }
+      const savedId = localStorage.getItem('fa_count_active_room_id');
+      const saved = formatted.find((r) => r.id === savedId);
+      const fallback = formatted.find((r) => r.status === 'open') || formatted[0] || null;
+      setCurrentRoom((prev) => {
+        const keep = prev && formatted.find((r) => r.id === prev.id);
+        return keep || saved || fallback;
+      });
+      const chosen = formatted.find((r) => r.id === savedId) || fallback;
+      if (chosen) localStorage.setItem('fa_count_active_room_id', chosen.id);
     } catch (err) {
       console.error('Error loading counter hub:', err);
     } finally {
@@ -161,352 +143,318 @@ export default function CounterPage() {
     loadData();
   }, [loadData]);
 
-  // Set current room
-  const handleSelectRoom = (room: AssignedRoom) => {
+  const handleSelectRoom = (room: Room) => {
     setCurrentRoom(room);
     localStorage.setItem('fa_count_active_room_id', room.id);
-    showToast(`Active room set: ${room.building} › ${room.room}`);
+    showToast(`Active room: ${room.building} › ${room.room}`);
   };
 
-  // 2. Evaluate Scanned Tag (Rules from Step 5 & Step 6)
-  const processScannedTag = async (scannedTag: string) => {
-    const tag = scannedTag.trim();
-    if (!tag) return;
+  const roomLabel = (r: { building: string | null; room: string | null }) =>
+    `${r.building || ''} › ${r.room || ''}`;
 
+  // Decide what happens for a tag: not in FAR / already verified / open the form
+  const processTag = async (rawTag: string) => {
+    const tag = rawTag.trim();
+    if (!tag) return;
+    if (!currentRoom) {
+      showToast('Select a room first.');
+      return;
+    }
+    if (roomLocked) {
+      showToast('This room is signed off. Ask a Team Lead to reopen it.');
+      return;
+    }
+
+    setLookupBusy(true);
     try {
       const supabase = createClient();
 
-      // Check Step 6 Exception: Is tag in FAR? (query asset_counter_view: NO cost/NBV)
-      const { data: assetData, error: assetErr } = await supabase
+      const { data: asset, error: assetErr } = await supabase
         .from('asset_counter_view')
         .select('*')
         .eq('tag_no', tag)
         .maybeSingle();
-
       if (assetErr) throw assetErr;
 
-      // Outcome A: Tag NOT in FAR -> Open Found Not in FAR form
-      if (!assetData) {
+      // Not in FAR: log it, never drop it
+      if (!asset) {
         setPrefilledTagNotFound(tag);
         setIsFoundNotInFarOpen(true);
         return;
       }
 
-      // Outcome B: Tag in FAR -> Check if ALREADY verified
-      const { data: existingVerif } = await supabase
-        .from('verification')
-        .select(`
-          id,
-          tag_no,
-          count_date,
-          created_at,
-          location_id,
-          counter_id,
-          location:location_id (building, floor, room),
-          counter:counter_id (full_name)
-        `)
-        .eq('tag_no', tag)
-        .maybeSingle();
-
-      if (existingVerif) {
-        // Tag already verified elsewhere
-        type LocType = { building?: string; room?: string };
-        type CounterType = { full_name?: string };
-        const loc = existingVerif.location as unknown as LocType | null;
-        const ctr = existingVerif.counter as unknown as CounterType | null;
-        const locName = loc ? `${loc.building || ''} › ${loc.room || ''}` : 'Another Room';
-        const counterName = ctr?.full_name || 'Another Auditor';
-        const timeStr = existingVerif.created_at
-          ? new Date(existingVerif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : existingVerif.count_date;
-
-        setAlreadyVerifiedData({
-          tag_no: tag,
-          roomName: locName,
-          counterName,
-          countTime: timeStr,
-          description: assetData.description,
-          verificationId: existingVerif.id,
-          fromLocationId: existingVerif.location_id || undefined,
-        });
-
-        setIsAlreadyVerifiedOpen(true);
+      if (asset.method === 'Document') {
+        alert(
+          `${tag} is a Land / AUC / clearing item (${asset.asset_class}). These are checked against documents, not counted in a room.`
+        );
         return;
       }
 
-      // Outcome C: Tag in FAR and not yet verified -> Open Verification Card!
-      setActiveAsset(assetData);
+      // Counters cannot read other counters' rows, so this goes through a server function
+      const { data: rows, error: rpcErr } = await supabase.rpc('lookup_tag_status', { p_tag: tag });
+      if (rpcErr) throw rpcErr;
+      const existing = (rows || []) as TagRow[];
+
+      if (existing.length === 0) {
+        setActiveAsset({ asset, otherQty: 0 });
+        return;
+      }
+
+      const here = existing.find((r) => r.location_id === currentRoom.id);
+      const elsewhere = existing.filter((r) => r.location_id !== currentRoom.id);
+
+      // Group asset (qty > 1) counted in another room: this room adds its own quantity
+      if (!here && asset.far_qty > 1) {
+        const otherQty = elsewhere.filter((r) => r.found === 'Yes').reduce((n, r) => n + Number(r.physical_qty || 0), 0);
+        setActiveAsset({ asset, otherQty });
+        return;
+      }
+
+      const ref = here || existing[0];
+      setAlreadyVerified({
+        tag_no: tag,
+        description: asset.description,
+        roomName: roomLabel(ref),
+        counterName: ref.counter_name || 'Another auditor',
+        countTime: new Date(ref.verified_at).toLocaleString([], {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        verificationId: ref.verification_id,
+        fromLocationId: ref.location_id || undefined,
+        sameRoom: !!here,
+        asset,
+        otherQty: elsewhere.filter((r) => r.found === 'Yes').reduce((n, r) => n + Number(r.physical_qty || 0), 0),
+      });
     } catch (err: unknown) {
-      const error = err as Error;
-      console.error('Error evaluating tag:', error);
-      alert('Error searching for tag: ' + error.message);
+      console.error('Error evaluating tag:', err);
+      alert('Error searching for tag: ' + ((err as Error).message || 'unknown error'));
+    } finally {
+      setLookupBusy(false);
     }
   };
 
-  // Exception handling callbacks
-  const handleOpenMovedMovement = () => {
-    if (!alreadyVerifiedData) return;
-    setMovementTagNo(alreadyVerifiedData.tag_no);
-    setMovementFromRoomId(alreadyVerifiedData.fromLocationId);
-    setMovementFromRoomName(alreadyVerifiedData.roomName);
-    setIsAlreadyVerifiedOpen(false);
+  const handleMoved = () => {
+    if (!alreadyVerified) return;
+    setMovementTagNo(alreadyVerified.tag_no);
+    setMovementFromRoomId(alreadyVerified.fromLocationId);
+    setMovementFromRoomName(alreadyVerified.roomName);
+    setAlreadyVerified(null);
     setIsMovementOpen(true);
   };
 
-  const handleDuplicateTagFlag = async () => {
-    if (!alreadyVerifiedData) return;
+  const handleDuplicate = async () => {
+    if (!alreadyVerified) return;
     try {
       const supabase = createClient();
-      await supabase
-        .from('verification')
-        .update({
-          remarks: `Flagged as duplicate tag by counter in ${currentRoom?.room || 'Current Room'}`,
-          tag_status: 'Tag Damaged/Unreadable',
-        })
-        .eq('id', alreadyVerifiedData.verificationId);
-
-      setIsAlreadyVerifiedOpen(false);
-      showToast('Flagged as duplicate tag exception.');
+      const { error } = await supabase.rpc('flag_duplicate_tag', {
+        p_tag: alreadyVerified.tag_no,
+        p_room: currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : null,
+        p_note: `Same tag scanned in ${currentRoom?.room || 'another room'} but already verified in ${alreadyVerified.roomName}`,
+      });
+      if (error) throw error;
+      setAlreadyVerified(null);
+      showToast('Flagged for the reviewer. Original record untouched.');
     } catch (err) {
-      console.error('Duplicate flag error:', err);
+      alert('Could not flag the duplicate: ' + ((err as Error).message || 'unknown error'));
     }
   };
 
-  // Called when verification is saved -> returns directly to camera scanner
-  const handleSaveAndScanNext = () => {
+  const handleUpdateHere = () => {
+    if (!alreadyVerified) return;
+    setActiveAsset({ asset: alreadyVerified.asset, otherQty: alreadyVerified.otherQty });
+    setAlreadyVerified(null);
+  };
+
+  const handleSaved = () => {
     setActiveAsset(null);
-    showToast('Saved! Ready for next scan.');
-    // Reopen camera scanner
-    setTimeout(() => {
-      setIsScannerOpen(true);
-    }, 200);
-    // Refresh room count
-    loadData();
+    showToast('Saved. Ready for the next tag.');
+    loadData(true);
+    setTimeout(() => setIsTypeTagOpen(true), 250);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-100 pb-20">
-      {/* Top Bar with active session */}
-      <TopBar
-        currentRoom={
-          currentRoom
-            ? `${currentRoom.building} › ${currentRoom.room}`
-            : 'Select a Room Below'
-        }
-        userName={userProfile?.name || 'Auditor'}
-        userRole="Counter"
-        isOnline={true}
-        pendingSyncCount={0}
-      />
+    <div className="flex flex-col min-h-screen bg-cream pb-6">
+      <TopBar currentRoom={currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'Select a room'} />
 
-      {/* Floating Success Toast */}
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-800 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg flex items-center space-x-2 animate-bounce">
-          <Sparkles className="w-4 h-4 text-emerald-300" />
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-emerald-800 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg flex items-center gap-2 max-w-[90vw]">
+          <Sparkles className="w-4 h-4 text-emerald-300 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       <main className="flex-1 max-w-lg w-full mx-auto p-4 space-y-4">
-        {/* Active Session Display */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-1">
-            <span>CURRENT COUNTING SESSION</span>
-            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
-              Active Room
+        {/* Active room */}
+        <section className="bg-white rounded-xl p-4 border border-slate-300 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            <span>Counting in</span>
+            {roomLocked ? (
+              <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Lock className="w-3 h-3" /> Signed off
+              </span>
+            ) : (
+              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Open</span>
+            )}
+          </div>
+
+          <h1 className="mt-1.5 text-base font-extrabold text-slate-900 flex items-start gap-1.5">
+            <Building2 className="w-4 h-4 text-brand-700 mt-0.5 shrink-0" />
+            <span className="break-words">
+              {currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'No room selected'}
             </span>
+          </h1>
+          <p className="text-xs text-slate-600 mt-1">
+            Floor {currentRoom?.floor || '—'} · You verified{' '}
+            <strong className="text-emerald-700">{currentRoom?.verifiedCount || 0}</strong> here
+          </p>
+
+          <Link
+            href="/count/close"
+            className="mt-3 w-full min-h-[44px] bg-cream-card hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-md flex items-center justify-center gap-1.5 border border-slate-300"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            Close this room &amp; get client sign-off
+          </Link>
+        </section>
+
+        {roomLocked && (
+          <div className="auth-alert-error">
+            This room is signed off, so counting is locked. A Team Lead can reopen it from the Locations page.
           </div>
+        )}
 
-          <div className="flex items-center justify-between mt-1">
-            <div>
-              <h1 className="text-base font-extrabold text-slate-900 flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-brand-700" />
-                {currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'No Room Selected'}
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Floor: {currentRoom?.floor || '—'} · Verified in room:{' '}
-                <strong className="text-emerald-700 font-bold">{currentRoom?.verifiedCount || 0}</strong> assets
-              </p>
-            </div>
-
-            <Link
-              href="/locations/close"
-              className="min-h-[40px] px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1 border border-slate-300 shrink-0"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Close Room</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Primary Action: Big SCAN Button (Min 58px) */}
-        <div className="space-y-3">
+        {/* Primary actions */}
+        <section className="space-y-3">
           <button
             type="button"
-            onClick={() => setIsScannerOpen(true)}
-            className="w-full min-h-[64px] px-5 py-4 bg-brand-700 hover:bg-brand-800 active:scale-[0.99] text-white rounded-2xl shadow-lg transition-all flex items-center justify-between group"
+            disabled={!currentRoom || roomLocked || lookupBusy}
+            onClick={() => setIsTypeTagOpen(true)}
+            className="w-full min-h-[64px] px-5 bg-brand-700 hover:bg-brand-800 active:scale-[0.99] text-white rounded-xl shadow-md transition-all flex items-center gap-3.5 disabled:opacity-50"
           >
-            <div className="flex items-center space-x-3.5 text-left">
-              <div className="p-2.5 bg-white/20 rounded-xl group-hover:scale-105 transition-transform">
-                <QrCode className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <div className="text-lg font-black tracking-wide leading-tight">
-                  SCAN ASSET TAG
-                </div>
-                <div className="text-xs text-blue-200 mt-0.5">
-                  Point rear camera at 8-digit barcode
-                </div>
-              </div>
+            <div className="p-2.5 bg-white/20 rounded-lg shrink-0">
+              {lookupBusy ? <Loader2 className="w-6 h-6 animate-spin" /> : <Keyboard className="w-6 h-6" />}
             </div>
-            <div className="text-xs font-bold bg-white/20 px-2.5 py-1.5 rounded-xl">
-              Camera Ready
+            <div className="text-left">
+              <div className="text-base font-extrabold leading-tight">Enter Tag Number</div>
+              <div className="text-xs text-white/80 mt-0.5">Type the 8-digit tag on the asset</div>
             </div>
           </button>
 
-          {/* Quick Fallback Tap Buttons */}
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setIsTypeTagOpen(true)}
-              className="flex flex-col items-center justify-center min-h-[60px] p-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 rounded-xl shadow-sm text-slate-800 transition-colors"
+              disabled={!currentRoom || roomLocked}
+              onClick={() => setIsSearchOpen(true)}
+              className="flex flex-col items-center justify-center min-h-[72px] p-3 bg-white hover:bg-cream-card border border-slate-300 rounded-xl shadow-sm text-slate-800 disabled:opacity-50"
             >
               <Search className="w-5 h-5 text-brand-700 mb-1" />
-              <span className="text-xs font-bold">Type Tag No.</span>
-              <span className="text-[10px] text-slate-400">Manual lookup</span>
+              <span className="text-xs font-bold">Search by name</span>
+              <span className="text-[10px] text-slate-500">Tag unreadable</span>
             </button>
 
             <button
               type="button"
+              disabled={!currentRoom || roomLocked}
               onClick={() => {
                 setPrefilledTagNotFound('');
                 setIsFoundNotInFarOpen(true);
               }}
-              className="flex flex-col items-center justify-center min-h-[60px] p-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 rounded-xl shadow-sm text-slate-800 transition-colors"
+              className="flex flex-col items-center justify-center min-h-[72px] p-3 bg-white hover:bg-cream-card border border-slate-300 rounded-xl shadow-sm text-slate-800 disabled:opacity-50"
             >
               <PlusCircle className="w-5 h-5 text-amber-600 mb-1" />
-              <span className="text-xs font-bold">+ Not in FAR</span>
-              <span className="text-[10px] text-slate-400">Untagged asset</span>
+              <span className="text-xs font-bold">Not in FAR</span>
+              <span className="text-[10px] text-slate-500">Untagged asset</span>
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* My Locations (Assigned Rooms) List */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 text-brand-700" />
-              My Assigned Rooms ({rooms.length})
-            </h2>
-            <span className="text-[11px] text-slate-500">Tap to switch active room</span>
-          </div>
+        {/* Rooms */}
+        <section className="bg-white rounded-xl p-4 border border-slate-300 shadow-sm space-y-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700 flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-brand-700" />
+            {userRole === 'counter' ? 'My rooms' : 'All rooms'} ({rooms.length})
+          </h2>
 
           {loading ? (
-            <div className="py-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+            <div className="py-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
-              <span>Loading assigned rooms...</span>
+              Loading rooms…
             </div>
           ) : rooms.length === 0 ? (
-            <div className="py-6 text-center text-xs text-slate-400">
-              No rooms assigned. Admin can configure rooms under /admin/locations.
+            <div className="py-5 text-center text-xs text-slate-500">
+              No rooms are assigned to you yet. Ask a Team Lead or Admin to assign you a room.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="space-y-1.5">
               {rooms.map((rm) => {
-                const isSelected = currentRoom?.id === rm.id;
+                const selected = currentRoom?.id === rm.id;
                 return (
                   <button
                     key={rm.id}
                     type="button"
                     onClick={() => handleSelectRoom(rm)}
-                    className={`w-full text-left py-3 px-3 rounded-xl flex items-center justify-between transition-colors min-h-[50px] ${
-                      isSelected
-                        ? 'bg-blue-50/80 border border-brand-200'
-                        : 'hover:bg-slate-50 active:bg-slate-100'
+                    className={`w-full text-left min-h-[56px] px-3 py-2 rounded-lg flex items-center justify-between gap-2 border ${
+                      selected ? 'bg-brand-50 border-brand-200' : 'bg-white border-slate-200 hover:bg-cream-card'
                     }`}
                   >
-                    <div className="flex items-center space-x-2.5">
-                      <div
-                        className={`p-1.5 rounded-lg ${
-                          isSelected ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        <DoorOpen className="w-4 h-4" />
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`p-1.5 rounded-md shrink-0 ${selected ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        {rm.status === 'open' ? <DoorOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                       </div>
-                      <div>
-                        <div className="font-bold text-xs text-slate-900 leading-tight">
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-slate-900 break-words">
                           {rm.building} › {rm.room}
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">Floor: {rm.floor}</div>
+                        <div className="text-[10px] text-slate-500">
+                          Floor {rm.floor}
+                          {rm.status !== 'open' ? ' · signed off' : ''}
+                        </div>
                       </div>
                     </div>
-
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                        {rm.verifiedCount} verified
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                        {rm.verifiedCount}
                       </span>
-                      {isSelected && <Check className="w-4 h-4 text-brand-700 font-bold" />}
+                      {selected && <Check className="w-4 h-4 text-brand-700" />}
                     </div>
                   </button>
                 );
               })}
             </div>
           )}
-        </div>
+        </section>
       </main>
 
-      {/* 1. Camera Barcode Scanner Modal */}
-      <BarcodeScannerModal
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScanSuccess={(decoded) => {
-          setIsScannerOpen(false);
-          processScannedTag(decoded);
-        }}
-        onOpenTypeTag={() => {
-          setIsScannerOpen(false);
-          setIsTypeTagOpen(true);
-        }}
-        onOpenSearch={() => {
-          setIsScannerOpen(false);
-          setIsSearchOpen(true);
-        }}
-      />
-
-      {/* 2. Type Tag Modal */}
       <TypeTagModal
         isOpen={isTypeTagOpen}
         onClose={() => setIsTypeTagOpen(false)}
         onSubmitTag={(tag) => {
           setIsTypeTagOpen(false);
-          processScannedTag(tag);
-        }}
-        onSwitchToScanner={() => {
-          setIsTypeTagOpen(false);
-          setIsScannerOpen(true);
+          processTag(tag);
         }}
       />
 
-      {/* 3. Search Description Modal */}
       <SearchDescriptionModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onSelectTag={(tag) => {
           setIsSearchOpen(false);
-          processScannedTag(tag);
+          processTag(tag);
         }}
       />
 
-      {/* 4. Exception: Already Verified Warning Modal */}
       <AlreadyVerifiedModal
-        isOpen={isAlreadyVerifiedOpen}
-        onClose={() => setIsAlreadyVerifiedOpen(false)}
-        info={alreadyVerifiedData}
-        onActionMoved={handleOpenMovedMovement}
-        onActionDuplicate={handleDuplicateTagFlag}
+        isOpen={!!alreadyVerified}
+        onClose={() => setAlreadyVerified(null)}
+        info={alreadyVerified}
+        onActionMoved={handleMoved}
+        onActionDuplicate={handleDuplicate}
+        onActionUpdate={handleUpdateHere}
       />
 
-      {/* 5. Movement Form Modal */}
       <MovementFormModal
         isOpen={isMovementOpen}
         onClose={() => setIsMovementOpen(false)}
@@ -514,38 +462,34 @@ export default function CounterPage() {
         fromLocationId={movementFromRoomId}
         fromLocationName={movementFromRoomName}
         toLocationId={currentRoom?.id}
-        toLocationName={currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'Current Room'}
+        toLocationName={currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'Current room'}
         onSuccess={() => {
-          showToast('Movement logged successfully!');
-          loadData();
+          showToast('Movement logged.');
+          loadData(true);
         }}
       />
 
-      {/* 6. Exception: Found Not in FAR Modal */}
       <FoundNotInFARModal
         isOpen={isFoundNotInFarOpen}
         onClose={() => setIsFoundNotInFarOpen(false)}
         tagFound={prefilledTagNotFound}
         locationId={currentRoom?.id}
         onSuccess={() => {
-          showToast('Untagged item recorded successfully!');
-          loadData();
+          showToast('Item recorded under Found Not in FAR.');
+          loadData(true);
         }}
       />
 
-      {/* 7. Core Verification Card Form */}
       {activeAsset && (
         <VerificationCard
-          asset={activeAsset}
+          asset={activeAsset.asset}
+          otherQty={activeAsset.otherQty}
           currentRoomId={currentRoom?.id}
-          currentRoomName={currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'Current Room'}
+          currentRoomName={currentRoom ? `${currentRoom.building} › ${currentRoom.room}` : 'Current room'}
           onClose={() => setActiveAsset(null)}
-          onSaveAndScanNext={handleSaveAndScanNext}
+          onSaveAndScanNext={handleSaved}
         />
       )}
-
-      {/* Mobile Bottom Navigation */}
-      <MobileNavBar />
     </div>
   );
 }

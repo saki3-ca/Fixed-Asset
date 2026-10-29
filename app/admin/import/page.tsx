@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { TopBar } from '@/components/navigation/TopBar';
 import { parseFARExcelBuffer, FARParseResult } from '@/lib/far/parser';
 import { 
   FileSpreadsheet, 
@@ -30,6 +30,7 @@ export default function FARImportPage() {
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number; batch: number; totalBatches: number } | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [acceptMismatch, setAcceptMismatch] = useState(false);
   const [saveSummary, setSaveSummary] = useState<string | null>(null);
 
   // Zero-cost view toggle
@@ -81,92 +82,45 @@ export default function FARImportPage() {
     }
   };
 
-  // Batch insert into Supabase (500 records per batch)
+  // Import in batches of 500 through the admin-only server route.
+  // Assets with cost = 0 at the cut-off are left out of the count (rule 5) and stay on the reference list.
   const handleSaveToDatabase = async () => {
     if (!parseResult || parseResult.activeAssets.length === 0) return;
+    if (!parseResult.summary.totalsMatch && !acceptMismatch) {
+      setErrorMsg('The imported totals do not match the source file. Tick the box to accept the difference, or fix the file.');
+      return;
+    }
 
     setSaving(true);
     setErrorMsg(null);
     setSaveSuccess(false);
 
     try {
-      const supabase = createClient();
-
-      // 1. Ensure an active engagement exists
-      let engagementId: string;
-      const { data: existingEng } = await supabase
-        .from('engagement')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (existingEng) {
-        engagementId = existingEng.id;
-      } else {
-        const { data: newEng, error: engErr } = await supabase
-          .from('engagement')
-          .insert({
-            client_name: 'Remarks HB Limited',
-            financial_year: 'FY25',
-            far_cutoff_date: '2025-06-30',
-            status: 'active',
-          })
-          .select('id')
-          .single();
-
-        if (engErr || !newEng) {
-          throw new Error('Failed to create engagement record: ' + engErr?.message);
-        }
-        engagementId = newEng.id;
-      }
-
-      // 2. Prepare batches of 500
       const BATCH_SIZE = 500;
-      const assets = parseResult.allAssets;
+      const assets = parseResult.activeAssets;
       const totalBatches = Math.ceil(assets.length / BATCH_SIZE);
-
-      let insertedCount = 0;
 
       for (let b = 0; b < totalBatches; b++) {
         const start = b * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, assets.length);
-        const chunk = assets.slice(start, end).map((a) => ({
-          tag_no: a.tag_no,
-          engagement_id: engagementId,
-          description: a.description,
-          asset_class: a.asset_class,
-          gl_account: a.gl_account || null,
-          capitalized_on: a.capitalized_on || null,
-          cost: a.cost,
-          acc_dep: a.acc_dep,
-          nbv: a.nbv,
-          far_qty: a.far_qty,
-          method: a.method,
-        }));
+        setSaveProgress({ current: end, total: assets.length, batch: b + 1, totalBatches });
 
-        setSaveProgress({
-          current: end,
-          total: assets.length,
-          batch: b + 1,
-          totalBatches,
+        const res = await fetch('/api/admin/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assets: assets.slice(start, end) }),
         });
-
-        const { error: upsertErr } = await supabase
-          .from('asset')
-          .upsert(chunk, { onConflict: 'tag_no' });
-
-        if (upsertErr) {
-          throw new Error(`Batch ${b + 1} failed: ${upsertErr.message}`);
-        }
-
-        insertedCount = end;
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`Batch ${b + 1} failed: ${json.error || res.statusText}`);
       }
 
       setSaveSuccess(true);
-      setSaveSummary(`Successfully imported and synchronized all ${insertedCount.toLocaleString()} assets in ${totalBatches} batches.`);
+      setSaveSummary(
+        `Imported ${assets.length.toLocaleString()} assets in ${totalBatches} batches. ` +
+          `${parseResult.zeroCostAssets.length.toLocaleString()} zero-cost assets were kept out of the count.`
+      );
     } catch (err: unknown) {
-      const error = err as Error;
-      setErrorMsg(error.message || 'Error saving assets to database.');
+      setErrorMsg((err as Error).message || 'Error saving assets to database.');
     } finally {
       setSaving(false);
     }
@@ -174,33 +128,7 @@ export default function FARImportPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col pb-16">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-brand-800 text-white shadow-md">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Link
-              href="/dashboard"
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-blue-100"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="font-bold text-base text-white leading-tight">
-                SAP FAR Excel Import Engine
-              </h1>
-              <p className="text-[11px] text-blue-200">
-                Collapse cost &amp; depreciation lines · Auto-assign methods · Filter zero-cost
-              </p>
-            </div>
-          </div>
-
-          <div className="text-right text-xs">
-            <span className="bg-brand-700 px-2.5 py-1 rounded-full text-blue-100 font-semibold border border-brand-600">
-              Admin Only
-            </span>
-          </div>
-        </div>
-      </header>
+      <TopBar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         {/* Step 1: Upload Card */}
@@ -279,10 +207,17 @@ export default function FARImportPage() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-semibold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Validated against PRD Benchmarks
-                  </span>
+                  {parseResult.summary.totalsMatch ? (
+                    <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Totals match the source file
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 bg-red-50 text-red-700 border border-red-200 rounded-full text-xs font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Totals do not match the source
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -392,7 +327,7 @@ export default function FARImportPage() {
                 >
                   {showZeroCostList ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   <span>
-                    {showZeroCostList ? 'Hide' : 'View'} {parseResult.zeroCostAssets.length} Zero-Cost Assets (Included in Import)
+                    {showZeroCostList ? 'Hide' : 'View'} {parseResult.zeroCostAssets.length} Zero-Cost Assets (Excluded from the count)
                   </span>
                 </button>
 
@@ -472,7 +407,7 @@ export default function FARImportPage() {
                           Complete Fixed Asset Register Import: All {parseResult.summary.totalUniqueAssets.toLocaleString()} Assets
                         </div>
                         <p className="text-[11px] text-brand-700 mt-0.5">
-                          Every asset from the FAR register will be imported into Supabase ({parseResult.summary.withValueCount.toLocaleString()} with value + {parseResult.summary.zeroCostCount.toLocaleString()} zero-cost items).
+                          {parseResult.summary.withValueCount.toLocaleString()} assets with cost will be imported. {parseResult.summary.zeroCostCount.toLocaleString()} zero-cost items are excluded from the count.
                         </p>
                       </div>
                       <span className="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-[11px] font-bold text-brand-700 shrink-0 self-start sm:self-auto">
@@ -480,6 +415,14 @@ export default function FARImportPage() {
                       </span>
                     </div>
 
+                    {!parseResult.summary.totalsMatch && (
+                      <label className="flex items-start gap-2 text-xs text-red-800 mb-3">
+                        <input type="checkbox" checked={acceptMismatch} onChange={(e) => setAcceptMismatch(e.target.checked)} className="mt-0.5" />
+                        <span>
+                          Source total cost Tk {parseResult.summary.sourceTotalApc.toLocaleString()} / acc. depreciation Tk {parseResult.summary.sourceTotalAccDep.toLocaleString()} differ from the imported figures. I have reviewed the difference and want to import anyway.
+                        </span>
+                      </label>
+                    )}
                     <button
                       onClick={handleSaveToDatabase}
                       disabled={saving}

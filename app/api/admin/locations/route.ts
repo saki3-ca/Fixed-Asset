@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireRole } from '@/lib/auth/requireRole';
 
 export async function GET() {
+  const auth = await requireRole(['admin', 'team_lead']);
+  if (!auth.ok) return auth.response;
   try {
     const adminSupabase = createAdminClient();
 
@@ -35,6 +38,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireRole(['admin', 'team_lead']);
+  if (!auth.ok) return auth.response;
   try {
     const body = await request.json();
     const adminSupabase = createAdminClient();

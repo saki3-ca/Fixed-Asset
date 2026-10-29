@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { TopBar } from '@/components/navigation/TopBar';
 import { UserProfile, UserRole } from '@/types/database';
 import * as XLSX from 'xlsx';
 import { 
@@ -252,30 +253,7 @@ export default function AdminUsersPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col pb-16">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-brand-800 text-white shadow-md">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Link
-              href="/dashboard"
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-blue-100"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="font-bold text-base text-white leading-tight">
-                User Management &amp; Access Control
-              </h1>
-              <p className="text-[11px] text-blue-200">
-                Invite auditors · Set roles · Soft deactivation (never delete)
-              </p>
-            </div>
-          </div>
-
-          <span className="bg-brand-700 px-2.5 py-1 rounded-full text-blue-100 font-semibold text-xs border border-brand-600">
-            Admin Only
-          </span>
-        </div>
-      </header>
+      <TopBar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         {/* Alerts */}

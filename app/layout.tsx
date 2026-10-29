@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 const playfair = Playfair_Display({
   subsets: ["latin"],
-  weight: ["700", "800", "900"],
+  weight: ["500", "600", "700"],
   variable: "--font-playfair",
 });
 
@@ -33,7 +33,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#EDE7DE",
+  themeColor: "#FAF9F4",
 };
 
 export default function RootLayout({

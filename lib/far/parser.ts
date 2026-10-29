@@ -38,6 +38,10 @@ export interface FARParseResult {
     totalAccDep: number;
     totalNbv: number;
     byMethod: Record<AssetMethod, number>;
+    // Rule 7: totals read straight from the source rows, to compare with the collapsed totals
+    sourceTotalApc: number;
+    sourceTotalAccDep: number;
+    totalsMatch: boolean;
   };
 }
 
@@ -48,6 +52,12 @@ export function determineMethod(accountDeterm: string): AssetMethod {
     .replace(/[,\-_&]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Document: every AUC (capital WIP) class, land and asset clearing, before any other keyword
+  // (e.g. "AUC- Mould" must not be treated as a countable mould)
+  if (/(^|\s)auc(\s|$)/.test(norm) || norm.startsWith('land') || norm.includes('clearing')) {
+    return 'Document';
+  }
 
   // Inspect
   if (norm.includes('building and shed') || norm.includes('decoration and renovation')) {
@@ -115,7 +125,7 @@ function formatExcelDate(rawDate: unknown): string | null {
 export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
   const workbook = XLSX.read(buffer, {
     type: 'array',
-    cellDates: true,
+    cellDates: false,
   });
 
   const sheetName = workbook.SheetNames.includes('Data') 
@@ -195,6 +205,8 @@ export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
   }
 
   const assetMap = new Map<string, IntermediateAsset>();
+  let sourceTotalApc = 0;
+  let sourceTotalAccDep = 0;
 
   for (const row of dataRows) {
     if (!row || row.length === 0) continue;
@@ -212,11 +224,14 @@ export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
     }
 
     const glName = String(row[colGLName] || '').trim();
-    // Rule 2: Rows whose "G/L Account name" contains "Depreciation" are depreciation lines
-    const isDepreciationLine = glName.toLowerCase().includes('depreciation');
+    // Rule 2: depreciation lines are named "...Depreciation..." or "Accumulated Dep-..."
+    const isDepreciationLine = /deprec|accum|acc\.?\s*dep/i.test(glName);
 
     const apcVal = parseFloat(String(row[colAPCReportingDate] || '0').replace(/,/g, '')) || 0;
     const accDepVal = parseFloat(String(row[colAccDepReportingDate] || '0').replace(/,/g, '')) || 0;
+
+    sourceTotalApc += apcVal;
+    sourceTotalAccDep += accDepVal;
 
     let existing = assetMap.get(tag_no);
 
@@ -315,18 +330,23 @@ export function parseFARExcelBuffer(buffer: ArrayBuffer): FARParseResult {
 
   return {
     allAssets,
-    activeAssets: allAssets, // All assets to be imported (including zero-cost)
+    // Rule 5: assets with cost = 0 at the cut-off are excluded from the count, kept as a reference list
+    activeAssets: allAssets.filter((a) => a.cost > 0),
     zeroCostAssets,
     summary: {
       totalRowsInFile: dataRows.length,
       totalUniqueAssets: assetMap.size,
       withValueCount,
       zeroCostCount: zeroCostAssets.length,
-      activeCount: allAssets.length,
+      activeCount: withValueCount,
       totalCost: Math.round(totalCost * 100) / 100,
       totalAccDep: Math.round(totalAccDep * 100) / 100,
       totalNbv: Math.round(totalNbv * 100) / 100,
       byMethod,
+      sourceTotalApc: Math.round(sourceTotalApc * 100) / 100,
+      sourceTotalAccDep: Math.round(sourceTotalAccDep * 100) / 100,
+      totalsMatch:
+        Math.abs(totalCost - sourceTotalApc) < 1 && Math.abs(totalAccDep - sourceTotalAccDep) < 1,
     },
   };
 }

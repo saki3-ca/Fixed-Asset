@@ -1,184 +1,170 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ShieldCheck, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
+import { Lock, LogIn, User as UserIcon } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    params.get('error') === 'deactivated'
+      ? 'Your account has been deactivated. Please contact the Lead Auditor.'
+      : null
+  );
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    if (!email.trim()) {
+      setError('Please enter your email address.');
+      return;
+    }
+    setError(null);
+    setNotice(null);
     setLoading(true);
 
     try {
       const supabase = createClient();
-
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error: authErr } = await supabase.auth.signInWithPassword({
         email: email.trim(),
-        password: password,
+        password,
       });
+      if (authErr) throw authErr;
 
-      if (error) {
-        throw error;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, active')
+        .eq('id', data.user.id)
+        .single();
+
+      if (!profile || !profile.active) {
+        await supabase.auth.signOut();
+        setError('Your account has been deactivated. Please contact the Lead Auditor.');
+        return;
       }
 
-      if (data.user) {
-        // Fetch user's role from public.profiles
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role, full_name, active')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError || !profile) {
-          // If profile table hasn't populated yet, default to /count
-          router.push('/count');
-        } else if (!profile.active) {
-          setErrorMsg('Your account has been deactivated. Please contact the Lead Auditor.');
-          await supabase.auth.signOut();
-          setLoading(false);
-          return;
-        } else if (profile.role === 'counter') {
-          // Route counters directly to mobile count & scanner
-          router.push('/count');
-        } else {
-          // Route admin, reviewer, team_lead, manager to dashboard
-          router.push('/dashboard');
-        }
-        router.refresh();
-      }
+      // Counters and team leads open the count screen; everyone else opens the dashboard
+      router.push(profile.role === 'counter' || profile.role === 'team_lead' ? '/count' : '/dashboard');
+      router.refresh();
     } catch (err: unknown) {
-      const error = err as Error;
-      // Friendly message for auditors
-      if (error.message?.includes('Invalid login credentials')) {
-        setErrorMsg('Invalid email or password. Please double check your credentials.');
-      } else if (error.message?.includes('fetch failed') || error.message?.includes('Failed to fetch')) {
-        setErrorMsg('Cannot reach Supabase. Please ensure your NEXT_PUBLIC_SUPABASE_URL and KEY are set in .env.local.');
+      const message = (err as Error).message || '';
+      if (message.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please verify credentials.');
+      } else if (message.includes('fetch failed') || message.includes('Failed to fetch')) {
+        setError('Cannot reach the server. Please check your connection and try again.');
       } else {
-        setErrorMsg(error.message || 'Login failed. Please try again.');
+        setError(message || 'Login failed. Please verify credentials.');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleForgot = async () => {
+    if (!email.trim()) {
+      setError('Enter your email above first, then tap "Forgot password?".');
+      return;
+    }
+    setError(null);
+    const supabase = createClient();
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth/set-password`,
+    });
+    if (resetErr) setError(resetErr.message);
+    else setNotice('If that email has an account, a password reset link has been sent.');
+  };
+
   return (
-    <div className="min-h-screen bg-cream flex flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* App Branding */}
-        <div className="text-center space-y-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/acnabin-logo.png"
-            alt="ACNABIN Chartered Accountants"
-            className="h-14 w-auto mx-auto object-contain"
-          />
-          <h1 className="auth-card-title">FA Count</h1>
-          <p className="text-[13px] text-slate-600">
-            Fixed Asset Physical Count &amp; Verification Portal
-          </p>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-card-header">
+          <div
+            className="brand-logo-badge"
+            style={{ width: 56, height: 56, fontSize: 20, margin: '0 auto 12px' }}
+          >
+            AC
+          </div>
+          <h2 className="auth-card-title">ACNABIN</h2>
+          <p className="auth-card-subtitle">Fixed Asset Count &amp; Verification Portal</p>
         </div>
-      </div>
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="auth-card py-8 px-6 sm:px-8">
-          <form className="space-y-4" onSubmit={handleLogin}>
-            {/* Error Notification */}
-            {errorMsg && (
-              <div className="auth-alert-error p-3 flex items-start space-x-2.5 text-xs animate-shake">
-                <AlertCircle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{errorMsg}</span>
-              </div>
-            )}
+        {notice && !error && <div className="auth-alert-success">{notice}</div>}
+        {error && <div className="auth-alert-error">{error}</div>}
 
-            {/* Email Field */}
-            <div>
-              <label 
-                htmlFor="email" 
-                className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5"
-              >
-                Auditor Email
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="auditor@acnabin.com"
-                  className="block w-full min-h-[48px] pl-11 pr-3 text-sm bg-white border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-600/20 focus:border-brand-700 text-slate-900 placeholder:text-slate-400 transition-all"
-                />
-              </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="form-field">
+            <label>Auditor Email</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="form-input"
+                placeholder="e.g. auditor@acnabin.com"
+                style={{ paddingLeft: '36px' }}
+                autoFocus
+              />
+              <UserIcon
+                size={16}
+                style={{ position: 'absolute', left: 10, top: 11, color: 'var(--ink-soft)' }}
+              />
             </div>
+          </div>
 
-            {/* Password Field */}
-            <div>
-              <label 
-                htmlFor="password" 
-                className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="block w-full min-h-[48px] pl-11 pr-3 text-sm bg-white border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-600/20 focus:border-brand-700 text-slate-900 placeholder:text-slate-400 transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Submit Button - Min 48px touch target */}
-            <div className="pt-2">
+          <div className="form-field">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Password</label>
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full min-h-[50px] flex items-center justify-center px-4 py-3 bg-brand-700 hover:bg-brand-800 active:scale-[0.99] text-white font-semibold rounded-md transition-all disabled:opacity-60 text-sm"
+                type="button"
+                onClick={handleForgot}
+                className="btn-link"
+                style={{ fontSize: '11px', padding: 0 }}
               >
-                {loading ? (
-                  <span className="flex items-center space-x-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Signing in...</span>
-                  </span>
-                ) : (
-                  'Sign In to Engagement'
-                )}
+                Forgot password?
               </button>
             </div>
-          </form>
-
-          {/* Auditor Note */}
-          <div className="mt-5 pt-4 border-t border-slate-100 text-center">
-            <p className="text-[11px] text-slate-500">
-              Role routing: <strong>Counters</strong> open the mobile scanner directly. <strong>Team Leads, Reviewers &amp; Admins</strong> open the control dashboard.
-            </p>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="form-input"
+                placeholder="Enter password"
+                required
+                style={{ paddingLeft: '36px' }}
+              />
+              <Lock
+                size={16}
+                style={{ position: 'absolute', left: 10, top: 11, color: 'var(--ink-soft)' }}
+              />
+            </div>
           </div>
+
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: '6px' }}>
+            <LogIn size={16} /> {loading ? 'Authenticating…' : 'Sign In'}
+          </button>
+        </form>
+
+        <div style={{ textAlign: 'center', fontSize: '12.5px', color: 'var(--ink-soft)' }}>
+          Accounts are created by invitation. Contact your Lead Auditor for access.
         </div>
       </div>
     </div>
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}

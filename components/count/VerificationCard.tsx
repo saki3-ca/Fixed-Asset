@@ -25,6 +25,8 @@ interface PhotoItem {
 
 interface VerificationCardProps {
   asset: AssetCounterView;
+  /** Quantity already counted in other rooms (group assets are summed across rooms) */
+  otherQty?: number;
   currentRoomId?: string;
   currentRoomName?: string;
   onClose: () => void;
@@ -33,6 +35,7 @@ interface VerificationCardProps {
 
 export const VerificationCard: React.FC<VerificationCardProps> = ({
   asset,
+  otherQty = 0,
   currentRoomId,
   currentRoomName = 'Current Room',
   onClose,
@@ -44,7 +47,7 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
   const [tagStatus, setTagStatus] = useState<TagStatus>('Tag OK');
   const [reTagNumber, setReTagNumber] = useState('');
   const [inUse, setInUse] = useState<boolean>(true);
-  const [physicalQty, setPhysicalQty] = useState<number>(asset.far_qty || 1);
+  const [physicalQty, setPhysicalQty] = useState<number>(Math.max((asset.far_qty || 1) - otherQty, 0));
   const [serialNo, setSerialNo] = useState('');
   const [brandModel, setBrandModel] = useState('');
   const [department, setDepartment] = useState('');
@@ -83,13 +86,22 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
   const handleSave = async () => {
     setErrorMsg(null);
 
-    // Enforce photo rule
-    if (photos.length < requiredPhotos) {
+    if (!currentRoomId) {
+      setErrorMsg('Select a room before saving.');
+      return;
+    }
+
+    if (found === 'Yes' && photos.length < requiredPhotos) {
       setErrorMsg(
-        `Audit Rule: At least ${requiredPhotos} photo${requiredPhotos > 1 ? 's' : ''} required ${
-          isConditionIssue || isTagIssue ? 'when there is a condition or tag issue' : 'when asset is Found'
+        `At least ${requiredPhotos} photo${requiredPhotos > 1 ? 's are' : ' is'} required ${
+          isConditionIssue || isTagIssue ? 'when there is a condition or tag issue' : 'when the asset is found'
         }.`
       );
+      return;
+    }
+
+    if (found === 'Yes' && tagStatus === 'Re-tagged' && !reTagNumber.trim()) {
+      setErrorMsg('Enter the new tag number for the re-tagged asset.');
       return;
     }
 
@@ -97,12 +109,41 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Your session expired. Please sign in again.');
 
-      // 1. Capture GPS (graceful fallback)
       const gps = await getCurrentGPSLocation();
 
-      // 2. Insert or update verification in public.verification
+      // 1. Upload every photo first. If any upload fails nothing is saved, so a record never exists without its evidence.
+      const uploaded: { path: string; hash: string; type: 'asset' | 'tag' | 'damage' }[] = [];
+      const batchId = Date.now();
+      if (found === 'Yes') {
+        for (let i = 0; i < photos.length; i++) {
+          const item = photos[i];
+          const path = `${asset.engagement_id || 'default_eng'}/${asset.tag_no}/${batchId}_${i + 1}.jpg`;
+          const { error: uploadErr } = await supabase.storage
+            .from('evidence')
+            .upload(path, item.file, { contentType: 'image/jpeg' });
+          if (uploadErr) {
+            throw new Error(`Photo ${i + 1} failed to upload (${uploadErr.message}). Check your signal and try again.`);
+          }
+          uploaded.push({
+            path,
+            hash: item.hash,
+            type: i === 0 ? 'asset' : isConditionIssue ? 'damage' : 'tag',
+          });
+        }
+      }
+
+      const retagNote =
+        found === 'Yes' && tagStatus === 'Re-tagged' && reTagNumber.trim()
+          ? `New tag: ${reTagNumber.trim()}`
+          : '';
+      const combinedRemarks = [remarks.trim(), retagNote].filter(Boolean).join(' | ') || null;
+
+      // 2. Save the verification: one record per tag per room
       const { data: verifData, error: verifErr } = await supabase
         .from('verification')
         .upsert(
@@ -111,57 +152,47 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
             engagement_id: asset.engagement_id || null,
             found,
             count_date: new Date().toISOString().split('T')[0],
-            counter_id: user?.id || null,
-            location_id: currentRoomId || null,
-            department: department.trim() || null,
-            custodian: custodian.trim() || null,
-            tag_status: tagStatus,
-            serial_no: serialNo.trim() || null,
-            brand_model: brandModel.trim() || null,
-            physical_qty: physicalQty,
-            condition,
-            in_use: inUse,
-            remarks: remarks.trim() || null,
+            counter_id: user.id,
+            location_id: currentRoomId,
+            department: found === 'Yes' ? department.trim() || null : null,
+            custodian: found === 'Yes' ? custodian.trim() || null : null,
+            tag_status: found === 'Yes' ? tagStatus : 'Tag OK',
+            serial_no: found === 'Yes' ? serialNo.trim() || null : null,
+            brand_model: found === 'Yes' ? brandModel.trim() || null : null,
+            physical_qty: found === 'Yes' ? physicalQty : 0,
+            condition: found === 'Yes' ? condition : 'Good',
+            in_use: found === 'Yes' ? inUse : false,
+            remarks: combinedRemarks,
             gps_lat: gps.latitude,
             gps_lng: gps.longitude,
             gps_accuracy: gps.accuracy,
           },
-          { onConflict: 'tag_no' }
+          { onConflict: 'tag_no,location_id' }
         )
         .select('id')
         .single();
 
       if (verifErr || !verifData) {
-        throw new Error(verifErr?.message || 'Failed to save verification');
+        throw new Error(verifErr?.message || 'Failed to save the verification');
       }
 
-      const verificationId = verifData.id;
-
-      // 3. Upload evidence photos to Supabase Storage
-      for (let i = 0; i < photos.length; i++) {
-        const item = photos[i];
-        const timestamp = Date.now();
-        const engFolder = asset.engagement_id || 'default_eng';
-        const storagePath = `${engFolder}/${asset.tag_no}/${timestamp}_${i + 1}.jpg`;
-
-        const { error: uploadErr } = await supabase.storage
-          .from('evidence')
-          .upload(storagePath, item.file, { contentType: 'image/jpeg' });
-
-        if (!uploadErr) {
-          // Record in public.photo
-          await supabase.from('photo').insert({
-            verification_id: verificationId,
-            file_path: storagePath,
-            file_hash: item.hash,
-            photo_type: i === 0 ? 'asset' : isConditionIssue ? 'damage' : 'tag',
+      // 3. Link the photos to the record
+      if (uploaded.length > 0) {
+        const { error: photoErr } = await supabase.from('photo').insert(
+          uploaded.map((u) => ({
+            verification_id: verifData.id,
+            file_path: u.path,
+            file_hash: u.hash,
+            photo_type: u.type,
             gps_lat: gps.latitude,
             gps_lng: gps.longitude,
-          });
+          }))
+        );
+        if (photoErr) {
+          throw new Error('Record saved but its photos could not be linked: ' + photoErr.message);
         }
       }
 
-      // 4. Return straight to camera scanner
       onSaveAndScanNext();
     } catch (err: unknown) {
       const error = err as Error;
@@ -172,10 +203,10 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end sm:justify-center p-0 sm:p-4 animate-fadeIn">
-      <div className="bg-white w-full max-w-lg mx-auto rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 modal-backdrop flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-lg mx-auto rounded-t-2xl sm:rounded-xl shadow-2xl border border-slate-300 flex flex-col max-h-[94vh] overflow-hidden">
         {/* Header Bar */}
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-brand-800 text-white rounded-t-3xl sm:rounded-t-2xl">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-brand-800 text-white rounded-t-2xl sm:rounded-t-xl">
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-mono text-lg font-black tracking-wider text-white">
@@ -211,7 +242,7 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
             <h4 className="font-bold text-sm text-slate-900 leading-snug">
               {asset.description}
             </h4>
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-1 gap-2">
               <span>Class: {asset.asset_class}</span>
               <span>FAR Qty: <strong className="text-slate-800">{asset.far_qty}</strong></span>
             </div>
@@ -352,7 +383,7 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
                 {asset.far_qty > 1 ? (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Physical Qty (FAR: {asset.far_qty})
+                      Qty here (FAR: {asset.far_qty}{otherQty > 0 ? `, ${otherQty} counted elsewhere` : ''})
                     </label>
                     <input
                       type="number"

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { compressEvidencePhoto } from '@/lib/camera/compress';
 import { PlusCircle, X, Camera, Loader2, CheckCircle2 } from 'lucide-react';
@@ -36,6 +36,24 @@ export const FoundNotInFARModal: React.FC<FoundNotInFARModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // The modal stays mounted while closed, so reset the form each time it opens
+  useEffect(() => {
+    if (isOpen) {
+      setTag(tagFound);
+      setDescription('');
+      setBrandModel('');
+      setSerialNo('');
+      setProbableClass('IT Hardware and Equipment');
+      setQty('1');
+      setCondition('Good');
+      setInUse(true);
+      setRemarks('');
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      setErrorMsg(null);
+    }
+  }, [isOpen, tagFound]);
+
   if (!isOpen) return null;
 
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +73,15 @@ export const FoundNotInFARModal: React.FC<FoundNotInFARModalProps> = ({
     e.preventDefault();
     if (!description.trim()) return;
 
+    if (!photoFile) {
+      setErrorMsg('A photo of the item is required.');
+      return;
+    }
+    if (!locationId) {
+      setErrorMsg('Select a room before recording an item.');
+      return;
+    }
+
     setSaving(true);
     setErrorMsg(null);
 
@@ -62,23 +89,31 @@ export const FoundNotInFARModal: React.FC<FoundNotInFARModalProps> = ({
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
 
+      // A typed tag must really be missing from the FAR
+      if (tag.trim()) {
+        const { data: inFar } = await supabase
+          .from('asset_counter_view')
+          .select('tag_no')
+          .eq('tag_no', tag.trim())
+          .maybeSingle();
+        if (inFar) {
+          throw new Error(`Tag ${tag.trim()} is in the FAR. Close this form and enter it with "Enter Tag Number" instead.`);
+        }
+      }
+
       let photoPath: string | null = null;
 
-      // Upload evidence photo if provided
-      if (photoFile) {
-        const timestamp = Date.now();
+      // Upload the evidence photo; if it fails nothing is saved
+      {
         const safeTag = tag.trim() || 'untagged';
-        const storagePath = `found_not_in_far/${safeTag}_${timestamp}.jpg`;
-
+        const storagePath = `found_not_in_far/${safeTag}_${Date.now()}.jpg`;
         const { error: uploadErr } = await supabase.storage
           .from('evidence')
           .upload(storagePath, photoFile, { contentType: 'image/jpeg' });
-
-        if (!uploadErr) {
-          photoPath = storagePath;
-        } else {
-          console.warn('Photo upload warning:', uploadErr.message);
+        if (uploadErr) {
+          throw new Error('The photo failed to upload (' + uploadErr.message + '). Check your signal and try again.');
         }
+        photoPath = storagePath;
       }
 
       // Insert into found_not_in_far
@@ -93,7 +128,7 @@ export const FoundNotInFARModal: React.FC<FoundNotInFARModalProps> = ({
         condition,
         in_use: inUse,
         photo_path: photoPath,
-        client_explanation: remarks.trim() || null,
+        remarks: remarks.trim() || null,
         logged_by: user?.id || null,
       });
 
@@ -109,8 +144,8 @@ export const FoundNotInFARModal: React.FC<FoundNotInFARModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+    <div className="modal-backdrop z-50 flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl p-5 pb-6 shadow-2xl border border-slate-300 space-y-4 max-h-[94vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center space-x-2">
             <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
@@ -230,7 +265,7 @@ export const FoundNotInFARModal: React.FC<FoundNotInFARModalProps> = ({
 
           {/* Photo Capture */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Asset Photo</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Asset Photo *</label>
             <div className="flex items-center space-x-3">
               <label className="flex items-center justify-center space-x-2 min-h-[48px] px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer border border-slate-300">
                 <Camera className="w-4 h-4 text-brand-700" />
