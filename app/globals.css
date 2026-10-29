@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  -webkit-tap-highlight-color: transparent;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ensure minimum touch target for interactive elements */
+button, 
+a[role="button"],
+input[type="button"],
+input[type="submit"] {
+  min-height: 48px;
+  touch-action: manipulation;
+}
+
+/* Prevent unwanted double-tap zoom on iOS Safari */
+input, textarea, select, button {
+  font-size: 16px;
+}
+
