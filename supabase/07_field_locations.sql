@@ -23,7 +23,7 @@ DECLARE
   v_loc public.location%ROWTYPE;
 BEGIN
   v_role := public.get_current_user_role();
-  IF v_role IS NULL THEN RAISE EXCEPTION 'Not authorised'; END IF;
+  IF v_role IS NULL OR v_role NOT IN ('admin', 'team_lead', 'counter') THEN RAISE EXCEPTION 'Not authorised'; END IF;
   IF COALESCE(trim(p_building), '') = '' THEN RAISE EXCEPTION 'Building / site name is required'; END IF;
 
   SELECT id INTO v_eng FROM public.engagement ORDER BY created_at LIMIT 1;
@@ -33,7 +33,14 @@ BEGIN
           NULLIF(trim(p_custodian), ''), auth.uid(), auth.uid(), 'open')
   ON CONFLICT (building, floor, room) DO UPDATE
     SET custodian = COALESCE(NULLIF(trim(p_custodian), ''), public.location.custodian)
+    WHERE public.location.status <> 'signed_off'
   RETURNING * INTO v_loc;
+
+  -- Signed-off rooms are never modified: return the existing row unchanged
+  IF NOT FOUND THEN
+    SELECT * INTO v_loc FROM public.location
+    WHERE building = trim(p_building) AND floor = COALESCE(trim(p_floor), '') AND room = COALESCE(trim(p_room), '');
+  END IF;
 
   RETURN v_loc;
 END;
@@ -47,7 +54,9 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_loc public.location%ROWTYPE;
 BEGIN
-  IF public.get_current_user_role() IS NULL THEN RAISE EXCEPTION 'Not authorised'; END IF;
+  IF COALESCE(public.get_current_user_role(), '') NOT IN ('admin', 'team_lead', 'counter') THEN
+    RAISE EXCEPTION 'Not authorised';
+  END IF;
   SELECT * INTO v_loc FROM public.location WHERE id = p_location;
   IF NOT FOUND THEN RAISE EXCEPTION 'Location not found'; END IF;
   IF v_loc.status = 'signed_off' THEN RAISE EXCEPTION 'This location is signed off. Ask a Team Lead to reopen it.'; END IF;
