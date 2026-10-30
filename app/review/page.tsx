@@ -233,7 +233,7 @@ export default function ReviewPage() {
       <TopBar />
       <main className="max-w-4xl mx-auto p-4 space-y-4">
         <div>
-          <h1 className="font-display text-xl sm:text-2xl font-semibold text-brand-700">Review</h1>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold text-brand-700">Review</h1>
           <p className="text-xs text-slate-600 mt-0.5">
             Check records and photos, approve or send back, and note the client&apos;s explanation.
             {!canAct && ' (Read-only for your role.)'}
@@ -337,8 +337,8 @@ export default function ReviewPage() {
                           </div>
                         ) : r.photo?.length ? (
                           <p className="text-xs text-slate-500">Loading photos…</p>
-                        ) : r.found === 'Yes' ? (
-                          <p className="text-xs text-red-700 font-semibold">No photo on file for a found asset.</p>
+                        ) : r.found === 'Yes' && (['Poor', 'Damaged', 'Idle', 'Not Working'].includes(r.condition) || r.tag_status !== 'Tag OK') ? (
+                          <p className="text-xs text-red-700 font-semibold">No photo on file for an asset with a condition or tag issue.</p>
                         ) : null}
 
                         {canAct && (

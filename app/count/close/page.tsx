@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useSearchParams } from 'next/navigation';
 import { TopBar } from '@/components/navigation/TopBar';
 import { SignaturePad } from '@/components/count/SignaturePad';
 import { CheckCircle2, Loader2, Lock, Unlock, ArrowLeft } from 'lucide-react';
@@ -21,7 +22,9 @@ interface RoomRow {
   signed_off_at: string | null;
 }
 
-export default function CloseRoomPage() {
+function CloseRoom() {
+  const params = useSearchParams();
+  const wanted = params.get('loc');
   const [role, setRole] = useState('counter');
   const [rooms, setRooms] = useState<RoomRow[]>([]);
   const [roomId, setRoomId] = useState<string>('');
@@ -61,13 +64,13 @@ export default function CloseRoomPage() {
       .order('floor')
       .order('room');
 
-    const mine = ((locs || []) as RoomRow[]).filter((l) => myRole !== 'counter' || l.assigned_counter === user.id);
+    const mine = (locs || []) as RoomRow[];
     setRooms(mine);
 
-    const saved = localStorage.getItem('fa_count_active_room_id') || '';
+    const saved = wanted || localStorage.getItem('fa_count_active_room_id') || '';
     setRoomId((prev) => prev || (mine.find((r) => r.id === saved)?.id ?? mine[0]?.id ?? ''));
     setLoading(false);
-  }, []);
+  }, [wanted]);
 
   useEffect(() => {
     load();
@@ -127,15 +130,15 @@ export default function CloseRoomPage() {
 
   return (
     <div className="min-h-screen bg-cream pb-10">
-      <TopBar currentRoom={room ? `${room.building} › ${room.room}` : undefined} />
+      <TopBar currentRoom={room ? [room.building, room.floor, room.room].filter(Boolean).join(' › ') : undefined} />
 
       <main className="max-w-lg mx-auto p-4 space-y-4">
-        <Link href="/count" className="inline-flex items-center gap-1.5 min-h-[44px] text-xs font-semibold text-brand-700">
-          <ArrowLeft className="w-4 h-4" /> Back to counting
+        <Link href="/count/locations" className="inline-flex items-center gap-1.5 min-h-[44px] text-xs font-semibold text-brand-700">
+          <ArrowLeft className="w-4 h-4" /> Back to locations
         </Link>
 
         <div>
-          <h1 className="font-display text-xl font-semibold text-brand-700">Close room</h1>
+          <h1 className="font-display text-3xl font-bold text-brand-700">Sign off location</h1>
           <p className="text-xs text-slate-600 mt-0.5">Review what was verified, note anything not accessed, then get the client&apos;s signature.</p>
         </div>
 
@@ -154,7 +157,7 @@ export default function CloseRoomPage() {
               <select className="form-select" value={roomId} onChange={(e) => { setRoomId(e.target.value); setDone(false); setError(null); }}>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.building} › {r.floor} › {r.room}{r.status === 'signed_off' ? ' (signed off)' : ''}
+                    {[r.building, r.floor, r.room].filter(Boolean).join(' › ')}{r.status === 'signed_off' ? ' (signed off)' : ''}
                   </option>
                 ))}
               </select>
@@ -256,5 +259,13 @@ export default function CloseRoomPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function CloseRoomPage() {
+  return (
+    <Suspense fallback={null}>
+      <CloseRoom />
+    </Suspense>
   );
 }

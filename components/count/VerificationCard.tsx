@@ -27,6 +27,8 @@ interface VerificationCardProps {
   asset: AssetCounterView;
   /** Quantity already counted in other rooms (group assets are summed across rooms) */
   otherQty?: number;
+  /** The location's user (e.g. Mr X) pre-fills the custodian field */
+  defaultCustodian?: string | null;
   currentRoomId?: string;
   currentRoomName?: string;
   onClose: () => void;
@@ -36,6 +38,7 @@ interface VerificationCardProps {
 export const VerificationCard: React.FC<VerificationCardProps> = ({
   asset,
   otherQty = 0,
+  defaultCustodian = null,
   currentRoomId,
   currentRoomName = 'Current Room',
   onClose,
@@ -51,7 +54,7 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
   const [serialNo, setSerialNo] = useState('');
   const [brandModel, setBrandModel] = useState('');
   const [department, setDepartment] = useState('');
-  const [custodian, setCustodian] = useState('');
+  const [custodian, setCustodian] = useState(defaultCustodian || '');
   const [remarks, setRemarks] = useState('');
 
   // Photos
@@ -62,7 +65,8 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
   // Minimum required photos rule
   const isConditionIssue = ['Poor', 'Damaged', 'Idle', 'Not Working'].includes(condition);
   const isTagIssue = tagStatus !== 'Tag OK';
-  const requiredPhotos = found === 'Yes' ? (isConditionIssue || isTagIssue ? 2 : 1) : 0;
+  // A photo is only mandatory as evidence of a problem; healthy, correctly tagged assets need none
+  const requiredPhotos = found === 'Yes' && (isConditionIssue || isTagIssue) ? 2 : 0;
 
   const handleCapturePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,9 +97,7 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
 
     if (found === 'Yes' && photos.length < requiredPhotos) {
       setErrorMsg(
-        `At least ${requiredPhotos} photo${requiredPhotos > 1 ? 's are' : ' is'} required ${
-          isConditionIssue || isTagIssue ? 'when there is a condition or tag issue' : 'when the asset is found'
-        }.`
+        `At least ${requiredPhotos} photos are required when there is a condition or tag issue.`
       );
       return;
     }
@@ -477,7 +479,7 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <label className="block text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Photo Evidence ({photos.length} / {requiredPhotos} required)
+                  Photo Evidence ({requiredPhotos > 0 ? `${photos.length} / ${requiredPhotos} required` : `${photos.length}, optional`})
                 </label>
                 <p className="text-[10px] text-slate-500">
                   Compressed on device to ~300KB (max 1600px).

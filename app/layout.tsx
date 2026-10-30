@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Inter, Caladea } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
-const playfair = Playfair_Display({
+const display = Caladea({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-playfair",
+  weight: ["400", "700"],
+  variable: "--font-display",
 });
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} ${playfair.variable} min-h-screen bg-cream text-slate-900 antialiased selection:bg-brand-100`}>
+      <body className={`${inter.className} ${display.variable} min-h-screen bg-cream text-slate-900 antialiased selection:bg-brand-100`}>
         {children}
       </body>
     </html>

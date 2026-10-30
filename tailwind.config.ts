@@ -12,7 +12,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        serif: ["var(--font-playfair)", "Playfair Display", "Georgia", "serif"],
+        serif: ["Cambria", "var(--font-display)", "Georgia", "serif"],
       },
       colors: {
         cream: {

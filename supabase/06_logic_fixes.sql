@@ -91,8 +91,8 @@ BEGIN
   SELECT COALESCE(far_qty, 1) INTO v_far_qty FROM public.asset WHERE tag_no = NEW.tag_no;
 
   SELECT COALESCE(SUM(physical_qty), 0) INTO v_other_qty
-  FROM public.verification
-  WHERE tag_no = NEW.tag_no AND found = 'Yes' AND id IS DISTINCT FROM NEW.id;
+  FROM public.verification v
+  WHERE v.tag_no = NEW.tag_no AND v.found = 'Yes' AND v.id IS DISTINCT FROM NEW.id;
 
   NEW.result := public.calculate_verification_result(
     NEW.found,
@@ -113,7 +113,7 @@ DECLARE
 BEGIN
   SELECT COALESCE(far_qty, 1) INTO v_far_qty FROM public.asset WHERE tag_no = NEW.tag_no;
   SELECT COALESCE(SUM(physical_qty), 0) INTO v_total
-  FROM public.verification WHERE tag_no = NEW.tag_no AND found = 'Yes';
+  FROM public.verification v WHERE v.tag_no = NEW.tag_no AND v.found = 'Yes';
 
   UPDATE public.verification v
   SET result = public.calculate_verification_result(
@@ -381,7 +381,7 @@ BEGIN
     'results', (SELECT COALESCE(jsonb_object_agg(result, n), '{}'::jsonb)
       FROM (SELECT result, count(*) n FROM public.verification GROUP BY result) t),
     'conditions', (SELECT COALESCE(jsonb_object_agg(condition, n), '{}'::jsonb)
-      FROM (SELECT condition, count(*) n FROM public.verification WHERE found = 'Yes' GROUP BY condition) t),
+      FROM (SELECT condition, count(*) n FROM public.verification v WHERE v.found = 'Yes' GROUP BY condition) t),
     'by_class', (SELECT COALESCE(jsonb_agg(to_jsonb(cls)), '[]'::jsonb) FROM cls),
     'by_location', (SELECT COALESCE(jsonb_agg(row_to_json(t)), '[]'::jsonb) FROM (
         SELECT l.id, l.building, l.floor, l.room, l.status, p.full_name AS counter,
@@ -451,3 +451,8 @@ DROP POLICY IF EXISTS "Auditors can view evidence photos" ON storage.objects;
 CREATE POLICY "Auditors can view evidence photos" ON storage.objects
   FOR SELECT TO authenticated USING (bucket_id = 'evidence');
 -- Note: no UPDATE or DELETE policy on purpose. Evidence photos are never overwritten or removed.
+
+-- --------------------------------------------------------------------
+-- 8. Make the API see the new functions immediately (fixes "Could not find the function ... in the schema cache")
+-- --------------------------------------------------------------------
+NOTIFY pgrst, 'reload schema';

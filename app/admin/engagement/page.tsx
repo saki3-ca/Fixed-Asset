@@ -76,7 +76,7 @@ export default function EngagementPage() {
       <TopBar />
       <main className="max-w-lg mx-auto p-4 space-y-4">
         <div>
-          <h1 className="font-display text-xl sm:text-2xl font-semibold text-brand-700">Engagement</h1>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold text-brand-700">Engagement</h1>
           <p className="text-xs text-slate-600 mt-0.5">Client, financial year, FAR cut-off and count period.</p>
         </div>
 

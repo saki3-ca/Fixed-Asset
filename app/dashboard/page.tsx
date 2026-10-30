@@ -51,7 +51,7 @@ function Tile({ label, value, sub }: { label: string; value: React.ReactNode; su
   return (
     <div className="bg-white border border-slate-300 rounded-xl p-3.5 shadow-sm">
       <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-xl sm:text-2xl font-extrabold text-slate-900 leading-tight break-words">{value}</div>
+      <div className="mt-1 font-display text-2xl sm:text-3xl font-bold text-slate-900 leading-tight break-words">{value}</div>
       {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
     </div>
   );
@@ -113,7 +113,7 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto p-4 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="font-display text-xl sm:text-2xl font-semibold text-brand-700 leading-tight">Count progress</h1>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-brand-700 leading-tight">Count progress</h1>
             {stats?.engagement && (
               <p className="text-xs text-slate-600 mt-0.5">
                 {stats.engagement.client_name} · {stats.engagement.financial_year} · FAR cut-off{' '}
@@ -156,7 +156,7 @@ export default function DashboardPage() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Coverage by count</div>
-                  <div className="text-3xl font-extrabold text-slate-900">{coverage}%</div>
+                  <div className="font-display text-5xl font-bold text-brand-700">{coverage}%</div>
                 </div>
                 <div className="text-right text-xs text-slate-600">
                   {stats.verified.assets.toLocaleString()} of {stats.totals.verifiable.toLocaleString()} assets
@@ -166,7 +166,7 @@ export default function DashboardPage() {
               <div className="flex items-end justify-between gap-3 pt-1">
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Coverage by cost</div>
-                  <div className="text-xl font-extrabold text-slate-900">{costCoverage}%</div>
+                  <div className="font-display text-3xl font-bold text-slate-900">{costCoverage}%</div>
                 </div>
                 <div className="text-right text-xs text-slate-600">
                   {crore(stats.verified.cost)} of {crore(stats.totals.verifiable_cost)}
