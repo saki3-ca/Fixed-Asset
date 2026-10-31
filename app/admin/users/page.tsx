@@ -130,7 +130,7 @@ export default function AdminUsersPage() {
           else if (lk.includes('name') || lk.includes('full name')) rowName = val;
           else if (lk.includes('role')) {
             const r = val.toLowerCase();
-            if (['admin', 'team_lead', 'counter', 'reviewer', 'manager'].includes(r)) {
+            if (['admin', 'counter', 'manager'].includes(r)) {
               rowRole = r as UserRole;
             }
           }
@@ -215,7 +215,7 @@ export default function AdminUsersPage() {
 
   // Download template CSV
   const handleDownloadTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,Full Name,Email,Role\nRafi Ahmed,rafi@acnabin.com,counter\nFarhan Kabir,farhan@acnabin.com,counter\nAudit Senior,senior@acnabin.com,reviewer\nAudit Manager,manager@acnabin.com,manager\nTeam Lead,lead@acnabin.com,team_lead\n";
+    const csvContent = "data:text/csv;charset=utf-8,Full Name,Email,Role\nRafi Ahmed,rafi@acnabin.com,counter\nFarhan Kabir,farhan@acnabin.com,counter\nAudit Manager,manager@acnabin.com,manager\n";
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -240,10 +240,6 @@ export default function AdminUsersPage() {
         return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'manager':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'reviewer':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      case 'team_lead':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'counter':
       default:
         return 'bg-slate-100 text-slate-800 border-slate-200';
@@ -321,10 +317,9 @@ export default function AdminUsersPage() {
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   className="w-full min-h-[48px] px-3.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-600 focus:border-brand-600"
                 >
-                  <option value="counter">Counter (Phone: Scan &amp; verify; Cost hidden)</option>
-                  <option value="team_lead">Team Lead (Phone / PC: Assign rooms, resolve sync)</option>
-                  <option value="reviewer">Reviewer (PC: Review records, approve, cost visible)</option>
-                  <option value="manager">Manager (PC: Read-only dashboard, sign-off)</option>
+                  <option value="counter">User / Counter (Phone: Scan &amp; verify; Cost hidden)</option>
+
+                  <option value="manager">Manager (Supervise, assign rooms, review &amp; approve, cost visible)</option>
                   <option value="admin">Admin (PC: Full control, import FAR, add users)</option>
                 </select>
               </div>

@@ -61,7 +61,7 @@ export default function SetPasswordPage() {
         ? await supabase.from('profiles').select('role').eq('id', user.id).single()
         : { data: null };
 
-      router.push(profile?.role === 'counter' || profile?.role === 'team_lead' ? '/count' : '/dashboard');
+      router.push(profile?.role === 'counter' ? '/count' : '/dashboard');
       router.refresh();
     } catch (err: unknown) {
       setError((err as Error).message || 'Could not set the password.');

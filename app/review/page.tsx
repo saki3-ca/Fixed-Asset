@@ -98,7 +98,7 @@ export default function ReviewPage() {
   const [flags, setFlags] = useState<Flag[]>([]);
   const [fnfEdits, setFnfEdits] = useState<Record<string, { explanation: string; resolution: string }>>({});
 
-  const canAct = role === 'admin' || role === 'reviewer' || role === 'team_lead';
+  const canAct = role === 'admin' || role === 'manager';
 
   const loadRecords = useCallback(async () => {
     setLoading(true);

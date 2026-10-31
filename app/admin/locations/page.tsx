@@ -66,7 +66,7 @@ export default function AdminLocationsPage() {
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('*')
-        .in('role', ['counter', 'team_lead'])
+        .in('role', ['counter', 'manager'])
         .eq('active', true)
         .order('full_name');
 

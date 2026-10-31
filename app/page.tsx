@@ -19,7 +19,7 @@ export default async function IndexPage() {
     .eq('id', session.user.id)
     .single();
 
-  if (profile?.role === 'counter' || profile?.role === 'team_lead') {
+  if (profile?.role === 'counter') {
     redirect('/count');
   } else {
     redirect('/dashboard');

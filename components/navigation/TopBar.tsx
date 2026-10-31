@@ -40,11 +40,11 @@ interface NavItem {
 // Order matters: the first four allowed items become the phone's bottom tabs, the rest live in the "Me" sheet.
 // Admins therefore reach every screen from one place, which is how an admin switches between field and control views.
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Count', href: '/count', icon: ListChecks, roles: ['admin', 'team_lead', 'counter'] },
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'team_lead', 'reviewer', 'manager'] },
-  { label: 'Review', href: '/review', icon: ClipboardCheck, roles: ['admin', 'team_lead', 'reviewer', 'manager'] },
-  { label: 'Locations', href: '/count/locations', icon: MapPin, roles: ['admin', 'team_lead', 'counter'] },
-  { label: 'Room setup', href: '/admin/locations', icon: Briefcase, roles: ['admin', 'team_lead'] },
+  { label: 'Count', href: '/count', icon: ListChecks, roles: ['admin', 'manager', 'counter'] },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'manager'] },
+  { label: 'Review', href: '/review', icon: ClipboardCheck, roles: ['admin', 'manager'] },
+  { label: 'Locations', href: '/count/locations', icon: MapPin, roles: ['admin', 'manager', 'counter'] },
+  { label: 'Room setup', href: '/admin/locations', icon: Briefcase, roles: ['admin', 'manager'] },
   { label: 'Users', href: '/admin/users', icon: Users, roles: ['admin'] },
   { label: 'Engagement', href: '/admin/engagement', icon: Briefcase, roles: ['admin'] },
   { label: 'Import FAR', href: '/admin/import', icon: Upload, roles: ['admin'] },
@@ -52,9 +52,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Admin',
-  team_lead: 'Team Lead',
-  counter: 'Counter',
-  reviewer: 'Reviewer',
+  counter: 'User / Counter',
   manager: 'Manager',
 };
 

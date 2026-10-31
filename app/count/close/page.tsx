@@ -41,7 +41,7 @@ function CloseRoom() {
   const [done, setDone] = useState(false);
 
   const room = rooms.find((r) => r.id === roomId);
-  const canReopen = role === 'admin' || role === 'team_lead';
+  const canReopen = role === 'admin' || role === 'manager';
 
   const load = useCallback(async () => {
     setLoading(true);

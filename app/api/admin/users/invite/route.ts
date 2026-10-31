@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     for (const item of usersToInvite) {
       const email = (item.email || '').trim().toLowerCase();
       const name = item.name?.trim() || email.split('@')[0];
-      const role = ['admin', 'team_lead', 'counter', 'reviewer', 'manager'].includes(item.role)
+      const role = ['admin', 'counter', 'manager'].includes(item.role)
         ? item.role
         : 'counter';
 

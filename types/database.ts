@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'team_lead' | 'counter' | 'reviewer' | 'manager';
+export type UserRole = 'admin' | 'counter' | 'manager';
 
 export type AssetMethod = 'Count' | 'Inspect' | 'Vehicle' | 'Document';
 

@@ -49,7 +49,7 @@ function LoginForm() {
       }
 
       // Counters and team leads open the count screen; everyone else opens the dashboard
-      router.push(profile.role === 'counter' || profile.role === 'team_lead' ? '/count' : '/dashboard');
+      router.push(profile.role === 'counter' ? '/count' : '/dashboard');
       router.refresh();
     } catch (err: unknown) {
       const message = (err as Error).message || '';

@@ -3,15 +3,15 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Which roles may open which page trees. Anything not listed is open to any signed-in user.
 const PAGE_ACCESS: Array<{ prefix: string; roles: string[] }> = [
-  { prefix: '/admin/locations', roles: ['admin', 'team_lead'] },
+  { prefix: '/admin/locations', roles: ['admin', 'manager'] },
   { prefix: '/admin', roles: ['admin'] },
-  { prefix: '/review', roles: ['admin', 'manager', 'reviewer', 'team_lead'] },
-  { prefix: '/dashboard', roles: ['admin', 'manager', 'reviewer', 'team_lead'] },
-  { prefix: '/count', roles: ['admin', 'counter', 'team_lead'] },
+  { prefix: '/review', roles: ['admin', 'manager'] },
+  { prefix: '/dashboard', roles: ['admin', 'manager'] },
+  { prefix: '/count', roles: ['admin', 'manager', 'counter'] },
 ];
 
 function homeFor(role: string) {
-  return role === 'counter' || role === 'team_lead' ? '/count' : '/dashboard';
+  return role === 'counter' ? '/count' : '/dashboard';
 }
 
 export async function updateSession(request: NextRequest) {

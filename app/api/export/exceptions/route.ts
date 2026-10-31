@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 // Exception schedule: everything the reviewer or partner has to look at, with client explanations.
 export async function GET() {
-  const auth = await requireRole(['admin', 'manager', 'reviewer', 'team_lead']);
+  const auth = await requireRole(['admin', 'manager']);
   if (!auth.ok) return auth.response;
 
   try {

@@ -38,7 +38,7 @@ interface VerifRow {
 
 // Fills the stored "FA_Count_Verification_Sheet.xlsx" template from the database so the agreed format and live formulas stay as they are.
 export async function GET() {
-  const auth = await requireRole(['admin', 'manager', 'reviewer', 'team_lead']);
+  const auth = await requireRole(['admin', 'manager']);
   if (!auth.ok) return auth.response;
 
   try {

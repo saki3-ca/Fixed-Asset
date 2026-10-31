@@ -265,3 +265,15 @@ The app must work fully offline on a mid-range Android phone and run on a Next.j
 - [ ] Is the client's Fixed Asset Data Collection Sheet still a required output, alongside the Count & Verification workbook?
 - [ ] Photo storage: Supabase only, or copy to Google Shared Drive at location close?
 - [ ] Definitions for the exception codes FI, NS, UL, OB, NA, MS, if they are still to be used
+
+---
+
+## Clarifications (review of PRD v1.0, 31 Oct 2026)
+
+- Roles: exactly three (`admin`, `manager`, `counter` = User / Counter). Team Lead / Reviewer roles are removed; existing such users were migrated to Manager (`supabase/08_prd_alignment.sql`).
+- No user may approve a record they verified themselves (enforced by DB trigger); only Manager/Admin approve.
+- Users cannot change their own role or active status (DB trigger).
+- Counter report access: Live Count and Movement only, without cost/NBV. Exception and Final reports are Admin/Manager.
+- Hard deletes are blocked on verification, photo, found-not-in-FAR, movement, doc-check and audit tables; audit_log is append-only.
+- Closed/locked engagements reject verification changes except by Admin.
+- Open items (not yet built): barcode/QR scanning, offline queue and sync, report-generation log, signed-off room re-sign rule, offline conflict rule, FAR re-upload rule.

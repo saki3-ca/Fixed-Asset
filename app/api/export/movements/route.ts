@@ -24,7 +24,7 @@ interface MovementRow {
 
 // Fills the client's "Asset Movement Register" template: one tab per receiving building/floor, 15 rows a page.
 export async function GET() {
-  const auth = await requireRole(['admin', 'manager', 'reviewer', 'team_lead']);
+  const auth = await requireRole(['admin', 'manager']);
   if (!auth.ok) return auth.response;
 
   try {
