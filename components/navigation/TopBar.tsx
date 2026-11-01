@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getMyProfile, clearMyProfile } from '@/lib/supabase/profile';
 
 interface TopBarProps {
   /** Room / context line shown under the logo */
@@ -75,16 +76,12 @@ export const TopBar: React.FC<TopBarProps> = ({ currentRoom, userRole, userName,
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single();
+      const me = await getMyProfile();
+      if (!me) return;
       if (!cancelled) {
         setProfile({
-          name: data?.full_name || user.email?.split('@')[0] || 'User',
-          role: data?.role || 'counter',
+          name: me.full_name || me.email?.split('@')[0] || 'User',
+          role: me.role || 'counter',
         });
       }
     })();
@@ -126,6 +123,7 @@ export const TopBar: React.FC<TopBarProps> = ({ currentRoom, userRole, userName,
   const signOut = async () => {
     setSigningOut(true);
     try {
+      clearMyProfile();
       await createClient().auth.signOut();
       router.push('/login');
       router.refresh();

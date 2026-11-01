@@ -48,9 +48,9 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verifies the JWT locally (no round trip to the auth server on every page load)
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub as string } : null;
 
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname === '/login';

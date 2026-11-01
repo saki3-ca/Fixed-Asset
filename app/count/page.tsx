@@ -88,8 +88,9 @@ export default function CounterPage() {
       setLoc(data as FieldLocation);
 
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
       if (user) {
         const { count } = await supabase
           .from('verification')

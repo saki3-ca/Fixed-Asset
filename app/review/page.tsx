@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { getMyProfile } from '@/lib/supabase/profile';
 import { TopBar } from '@/components/navigation/TopBar';
 import { Check, CornerUpLeft, Loader2, ChevronDown, ChevronUp, Save } from 'lucide-react';
 
@@ -105,14 +106,6 @@ export default function ReviewPage() {
     setError(null);
     const supabase = createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: p } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      setRole(p?.role || '');
-    }
-
     let q = supabase
       .from('verification')
       .select(
@@ -140,17 +133,23 @@ export default function ReviewPage() {
 
   const loadOthers = useCallback(async () => {
     const supabase = createClient();
-    const { data: f } = await supabase
+    const [{ data: f }, { data: fl }] = await Promise.all([
+      supabase
       .from('found_not_in_far')
       .select('id, tag_found, description, brand_model, qty, condition, remarks, client_explanation, resolution, photo_path, location:location_id (building, room)')
-      .order('created_at', { ascending: false });
-    setFnf((f || []) as unknown as Fnf[]);
-    const { data: fl } = await supabase
+      .order('created_at', { ascending: false }),
+      supabase
       .from('audit_log')
       .select('id, record_id, reason, changed_at')
       .eq('field', 'duplicate_tag_flag')
-      .order('changed_at', { ascending: false });
+      .order('changed_at', { ascending: false }),
+    ]);
+    setFnf((f || []) as unknown as Fnf[]);
     setFlags((fl || []) as Flag[]);
+  }, []);
+
+  useEffect(() => {
+    getMyProfile().then((me) => setRole(me?.role || ''));
   }, []);
 
   useEffect(() => {

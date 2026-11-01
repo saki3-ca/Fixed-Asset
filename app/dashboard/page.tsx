@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { getMyProfile } from '@/lib/supabase/profile';
 import { TopBar } from '@/components/navigation/TopBar';
 import { Loader2, Download, ClipboardCheck, Lock, RefreshCw, AlertTriangle } from 'lucide-react';
 
@@ -69,14 +70,8 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: p } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      setRole(p?.role || '');
-    }
-    const { data, error: rpcErr } = await supabase.rpc('dashboard_stats');
+    const [me, { data, error: rpcErr }] = await Promise.all([getMyProfile(), supabase.rpc('dashboard_stats')]);
+    setRole(me?.role || '');
     if (rpcErr) setError(rpcErr.message);
     else setStats(data as Stats);
     setLoading(false);
